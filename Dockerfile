@@ -1,5 +1,14 @@
 FROM python:3.11-slim
 
+# pymupdf (fitz) needs these system libs for PDF rendering
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libmupdf-dev \
+    libfreetype6 \
+    libharfbuzz0b \
+    libjpeg62-turbo \
+    libopenjp2-7 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY backend/requirements.txt .
