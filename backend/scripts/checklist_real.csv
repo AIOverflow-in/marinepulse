@@ -1,0 +1,76 @@
+Inspection Item,Category,Weight
+"External hull condition: corrosion, pitting, coating breakdown, dents, deformation",Hull & Structural Integrity,1
+"Draft marks, load line marks, Plimsoll marks visible and painted",Hull & Structural Integrity,1
+"Deck plating: cracks, wastage, coating, non-slip surface condition",Hull & Structural Integrity,2
+"Hatch covers, deck penetrations, and weathertight doors tightness",Hull & Structural Integrity,1
+Ballast tank access hatches sealed and maintained,Hull & Structural Integrity,1
+"Mooring winches, brakes, and rendering markers in good order. Brake thickness is adequate",Deck Machinery & Fittings,2
+"Mooring ropes/wires in good condition, certificates available.",Deck Machinery & Fittings,2
+"Anchors, windlass, chain cable condition and bitter end securing",Deck Machinery & Fittings,1
+"Hydraulic systems: leaks, hoses, oil levels, guards in place",Deck Machinery & Fittings,1
+"Cargo manifold pressure gauges, drip trays, reducers condition",Deck Machinery & Fittings,3
+Deck cranes/davit condition and load test records,Deck Machinery & Fittings,2
+"Cargo pumps (main, stripping, emergency) operational",Cargo Handling Systems,3
+"Cargo lines and valves free from leaks, pressure test done prior last discharge, manifold pressure transmitter working in good condition",Cargo Handling Systems,2
+"Cargo tank access lids, gaskets, ladders condition",Cargo Handling Systems,2
+Tank atmosphere monitoring system calibrated,Cargo Handling Systems,3
+"Inert Gas System: blower operation, oxygen content, deck water seal",Cargo Handling Systems,2
+"Crude Oil Washing system - equipment readiness, lines flushed, safety interlocks working / no alarms on panel",Cargo Handling Systems,3
+Vapor return line condition / sensors working in good order,Cargo Handling Systems,3
+"Ballast pumps operational, valves responsive",Ballast & Stability,3
+"Ballast tanks coating, internal condition, anodes status",Ballast & Stability,2
+"Remote sounding, gauging systems operational",Ballast & Stability,1
+"Ballast Water Management System functional, logs updated",Ballast & Stability,3
+"Main engine: condition, alarms, safety devices, leaks. Any issues noted in last performance analysis. MECYL dosing is optimised",Engine Room & Machinery,2
+"Auxiliary engines: running condition, vibration, exhaust leaks. Any concerns in last performance analysis.",Engine Room & Machinery,1
+"Boilers and economizers: safety valves not leaking, alarms functional. Boiler water test results to be reviewed and if possible witnessed",Engine Room & Machinery,2
+Steering gear: emergency and local operation tested / last test date for a short visit,Engine Room & Machinery,2
+Fuel and lube oil purifiers operational. All panels in good order. No alarms on panels,Engine Room & Machinery,1
+"Bilge system: alarms and pumps tested, free from leaks",Engine Room & Machinery,1
+Oily Water Separator and 15 ppm monitor tested,Engine Room & Machinery,2
+Quick-closing valves and remote stops tested,Engine Room & Machinery,2
+"Main switchboard clean, no overheating signs, insulation test records",Electrical Systems,2
+Emergency generator auto-start tested,Electrical Systems,3
+"Lighting throughout vessel (navigation, deck, engine, accommodation)",Electrical Systems,3
+UPS and emergency battery backup functional. Battery ready reckoner to be reviewed,Electrical Systems,1
+Fire detection/alarm panel working. Date is correct and no alarms on panel,Electrical Systems,1
+"Fire extinguishers: in place, serviced, tagged",Safety & Firefighting Equipment,2
+Fire pumps and emergency fire pump tested,Safety & Firefighting Equipment,1
+"CO2 fixed system: cylinders secured, alarms functional",Safety & Firefighting Equipment,3
+"Foam monitors, hydrants, hoses condition",Safety & Firefighting Equipment,2
+Fire detection loops tested,Safety & Firefighting Equipment,2
+Emergency shutdown systems tested,Safety & Firefighting Equipment,3
+"Lifeboats: engines run, release gears tested, equipment complete",Safety & Firefighting Equipment,2
+Liferaft: hydrostatic release units valid,Safety & Firefighting Equipment,1
+"PPE: BA sets functional, spare cylinders charged, EEBDs in place",Safety & Firefighting Equipment,3
+Compasses: magnetic and gyro checked,Bridge & Navigation,3
+"Navigation equipment: radar, ECDIS, GPS, AIS, VDR operational",Bridge & Navigation,1
+"Bridge alarms: BNWAS, steering gear alarms tested",Bridge & Navigation,1
+"GMDSS: radio tests, EPIRB, SARTs, Navtex, batteries checked",Bridge & Navigation,1
+"Passage planning, charts, and publications updated",Bridge & Navigation,1
+ODME system tested and records available,Pollution Prevention,2
+Oil record books Part I & II maintained correctly,Pollution Prevention,3
+Slop tank - fixed Wilden pump and dump valve arrangements operational,Pollution Prevention,3
+Garbage segregation and Garbage Record Book up to date,Pollution Prevention,2
+Sewage treatment plant functional,Pollution Prevention,2
+SOPEP kit complete and easily accessible,Pollution Prevention,3
+"Accommodation block structural integrity (corrosion, cracks, paint)",Accommodation & Living Spaces,3
+"External stairways, handrails, and doors secure",Accommodation & Living Spaces,2
+Fire doors operational and self-closing,Accommodation & Living Spaces,2
+Emergency lighting in corridors and stairways tested,Accommodation & Living Spaces,1
+Ventilation and air-conditioning units working properly,Accommodation & Living Spaces,1
+"Mess room, galley, provisions store: cleanliness, pest control, food hygiene",Accommodation & Living Spaces,3
+"Refrigeration rooms: temperature control, door safety release operational",Accommodation & Living Spaces,2
+"Laundry, sanitary facilities in working condition",Accommodation & Living Spaces,3
+"Cabins: clean, furniture secure, no unsafe modifications",Accommodation & Living Spaces,3
+Medical locker properly stocked and log maintained,Accommodation & Living Spaces,1
+Accommodation gas detection systems tested,Accommodation & Living Spaces,1
+Muster list posted and updated,Emergency Preparedness,2
+Emergency communication systems (CCR-Bridge-Engine-Accommodation),Emergency Preparedness,2
+"Abandon ship and fire drills records checked. If sailing inspection is performed conduct a drill for checking crew response and emergency equipment readiness",Emergency Preparedness,2
+"Emergency escape routes marked, free of obstruction",Emergency Preparedness,1
+Check the DD specs / jobs assigned to DD,Drydock Preparations,1
+Check the UPLM / Pending PMS jobs / critical jobs overdue. Check randomly the inventory and confirm all critical spares are onboard.,PMS Status,3
+Check the knowledge and competence of crew members. Make comments for performance exceeding the requirements. Master and CE intermediate or signoff scope to be made for the onboard performance evaluation,Crew Competency,3
+"Check the vessel budget status, planned spares over next 3 months.",Budget & Variance,3
+Check the ongoing projects of the year and the progress of the same. Check EMOC is up to date and confirm the status of all open EMOC.,Status of Projects,1
