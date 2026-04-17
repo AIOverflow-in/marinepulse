@@ -16,6 +16,7 @@ import {
   Users,
   MapPin,
   BookOpen,
+  BookMarked,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearToken, getStoredUser } from "@/lib/api";
@@ -43,6 +44,12 @@ const navGroups = [
       { href: "/checklists", icon: FileText, label: "Checklists", roles: null },
       { href: "/criteria-sets", icon: BookOpen, label: "Criteria Sets", roles: null },
       { href: "/analytics", icon: BarChart3, label: "Analytics", roles: null },
+    ],
+  },
+  {
+    label: "OPERATIONS",
+    items: [
+      { href: "/vessel-logs", icon: BookMarked, label: "Vessel Logs", roles: null },
     ],
   },
   {
