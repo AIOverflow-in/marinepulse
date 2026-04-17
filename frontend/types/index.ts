@@ -223,3 +223,143 @@ export interface ChatSession {
   created_at: string;
   updated_at: string;
 }
+
+// ─── AuditVault AI ────────────────────────────────────────────────────────────
+
+export interface VesselWeeklyLog {
+  id: string;
+  vessel_id: string;
+  vessel_name: string;
+  week_number: number;
+  year: number;
+  status: "draft" | "submitted" | "reviewed";
+  ai_report?: string;
+  anomalies: string[];
+  created_at: string;
+  submitted_at?: string;
+  // completion summary (computed by GET /{log_id})
+  has_safety_checks?: boolean;
+  has_maintenance_log?: boolean;
+  photo_count?: number;
+  drill_count?: number;
+  has_me_performance?: boolean;
+}
+
+export interface WeeklyCheckItem {
+  item_code: string;
+  description: string;
+  w1: boolean;
+  w2: boolean;
+  w3: boolean;
+  w4: boolean;
+  w5: boolean;
+  initials?: string;
+  remarks?: string;
+}
+
+export interface PeriodicCheckItem {
+  item_code: string;
+  description: string;
+  test_date?: string;   // ISO date string
+  initials?: string;
+  remarks?: string;
+  not_applicable?: boolean;
+}
+
+export interface SafetyCheckRecord {
+  id: string | null;
+  log_id: string;
+  completed_by: string;
+  position: string;
+  week_items: WeeklyCheckItem[];
+  monthly_items: PeriodicCheckItem[];
+  quarterly_items: PeriodicCheckItem[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MaintenanceTask {
+  seq_number: number;
+  description: string;
+  category: "engine_room" | "electrical";
+  performed: boolean;
+  hours_actual?: number;
+  remarks?: string;
+}
+
+export interface MaintenanceLogRecord {
+  id: string | null;
+  log_id: string;
+  er_tasks: MaintenanceTask[];
+  electrical_tasks: MaintenanceTask[];
+  completed_by: string;
+  reviewed_by?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MaintenancePhoto {
+  id: string;
+  log_id: string;
+  original_filename: string;
+  caption: string;
+  category: string;
+  location_tag?: string;
+  file_size_kb: number;
+  taken_at?: string;
+  uploaded_at: string;
+  has_file: boolean;
+}
+
+export interface DrillRecord {
+  id: string;
+  log_id: string;
+  drill_type: string;
+  drill_type_label: string;
+  drill_date: string;
+  drill_time?: string;
+  location?: string;
+  conducted_by: string;
+  attendees: string[];
+  attendee_count: number;
+  observations?: string;
+  corrective_actions?: string;
+  created_at: string;
+}
+
+export interface CylinderData {
+  cylinder_number: number;
+  tbn_residual?: number;
+  fe_ppm?: number;
+  drain_oil_bn?: number;
+  liner_wear_mm?: number;
+  remarks?: string;
+}
+
+export interface MEPerformanceRecord {
+  id: string | null;
+  log_id: string;
+  record_date: string;
+  oil_type?: string;
+  tbn_nominal?: number;
+  engine_run_hours?: number;
+  shaft_power_kw?: number;
+  speed_rpm?: number;
+  fuel_index?: number;
+  acc_g_kwhxs?: number;
+  min_feed_rate_g_kwh?: number;
+  sulphur_content_pct?: number;
+  specific_feed_rate_g_kwh?: number;
+  cylinders: CylinderData[];
+  notes?: string;
+  completed_by: string;
+  created_at?: string;
+}
+
+export interface OverdueAlert {
+  item_code: string;
+  description: string;
+  frequency: "monthly" | "quarterly";
+  last_done?: string;
+  days_overdue: number;
+}

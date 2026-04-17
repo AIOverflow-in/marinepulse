@@ -492,7 +492,14 @@ async def clear_all():
 
 
 async def seed():
-    client = AsyncIOMotorClient(MONGODB_URI)
+    if MONGODB_URI.startswith("mongodb+srv"):
+        try:
+            import certifi
+            client = AsyncIOMotorClient(MONGODB_URI, tlsCAFile=certifi.where())
+        except Exception:
+            client = AsyncIOMotorClient(MONGODB_URI)
+    else:
+        client = AsyncIOMotorClient(MONGODB_URI)
     db_name = MONGODB_URI.split("/")[-1].split("?")[0]
     await init_beanie(
         database=client[db_name],
