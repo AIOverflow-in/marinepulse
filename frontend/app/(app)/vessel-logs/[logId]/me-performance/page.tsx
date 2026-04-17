@@ -452,7 +452,7 @@ export default function MEPerformancePage() {
                   borderRadius: "8px",
                   fontSize: "12px",
                 }}
-                formatter={(val: number) => [`${val}`, "TBN"]}
+                formatter={(val) => [`${val ?? ""}`, "TBN"]}
               />
               <ReferenceLine
                 y={TBN_WARN_THRESHOLD}
