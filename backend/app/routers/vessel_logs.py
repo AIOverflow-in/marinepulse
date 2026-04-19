@@ -118,7 +118,13 @@ def _company_id(user: User) -> PydanticObjectId:
     return user.company_id or user.id
 
 
+def _is_admin(user: User) -> bool:
+    return user.role in ("consultancy_admin",)
+
+
 def _check_log_access(log: VesselWeeklyLog, user: User):
+    if _is_admin(user):
+        return
     if str(log.company_id) != str(_company_id(user)):
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -178,7 +184,9 @@ async def list_logs(
     limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
 ):
-    query_filters = [VesselWeeklyLog.company_id == _company_id(current_user)]
+    query_filters = []
+    if not _is_admin(current_user):
+        query_filters.append(VesselWeeklyLog.company_id == _company_id(current_user))
     if vessel_id:
         query_filters.append(VesselWeeklyLog.vessel_id == PydanticObjectId(vessel_id))
     if year:
@@ -203,19 +211,24 @@ async def create_log(
     body: CreateLogBody,
     current_user: User = Depends(get_current_user),
 ):
-    # Check for duplicate (same vessel + week + year)
+    from app.models.vessel import Vessel as VesselModel
+    vessel_obj = await VesselModel.get(PydanticObjectId(body.vessel_id))
+    if not vessel_obj:
+        raise HTTPException(status_code=404, detail="Vessel not found")
+    log_company_id = vessel_obj.company_id
+
     existing = await VesselWeeklyLog.find_one(
         VesselWeeklyLog.vessel_id == PydanticObjectId(body.vessel_id),
         VesselWeeklyLog.week_number == body.week_number,
         VesselWeeklyLog.year == body.year,
-        VesselWeeklyLog.company_id == _company_id(current_user),
+        VesselWeeklyLog.company_id == log_company_id,
     )
     if existing:
         raise HTTPException(status_code=409, detail="Weekly log already exists for this vessel and week")
 
     log = VesselWeeklyLog(
         vessel_id=PydanticObjectId(body.vessel_id),
-        company_id=_company_id(current_user),
+        company_id=log_company_id,
         vessel_name=body.vessel_name,
         week_number=body.week_number,
         year=body.year,
@@ -231,7 +244,8 @@ async def compliance_calendar(
     year: int = Query(...),
     current_user: User = Depends(get_current_user),
 ):
-    data = await get_compliance_calendar(str(_company_id(current_user)), year)
+    company_filter = None if _is_admin(current_user) else str(_company_id(current_user))
+    data = await get_compliance_calendar(company_filter, year)
     return {"year": year, "vessels": data}
 
 

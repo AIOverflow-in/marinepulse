@@ -345,9 +345,10 @@ async def generate_weekly_report(log_id: str) -> str:
 
 # ─── Compliance calendar ──────────────────────────────────────────────────────
 
-async def get_compliance_calendar(company_id: str, year: int) -> List[dict]:
+async def get_compliance_calendar(company_id: Optional[str], year: int) -> List[dict]:
     """
     Returns a compliance grid for all vessels in the company for the given year.
+    Pass company_id=None to return all companies (consultancy_admin view).
     Each vessel entry has a `weeks` dict: week_number → "complete"|"partial"|"missing"|"future"
     """
     from app.models.vessel_weekly_log import VesselWeeklyLog
@@ -357,10 +358,10 @@ async def get_compliance_calendar(company_id: str, year: int) -> List[dict]:
     current_year = today.year
 
     # Fetch all logs for this company/year
-    logs = await VesselWeeklyLog.find(
-        VesselWeeklyLog.company_id == PydanticObjectId(company_id),
-        VesselWeeklyLog.year == year,
-    ).to_list()
+    filters = [VesselWeeklyLog.year == year]
+    if company_id:
+        filters.append(VesselWeeklyLog.company_id == PydanticObjectId(company_id))
+    logs = await VesselWeeklyLog.find(*filters).to_list()
 
     # Group by vessel
     vessel_logs: dict = {}
