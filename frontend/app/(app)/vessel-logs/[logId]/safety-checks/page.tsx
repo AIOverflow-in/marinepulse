@@ -132,40 +132,54 @@ export default function SafetyChecksPage() {
                   <th key={w} className="px-2 py-2 w-10 text-center font-semibold text-slate-500">{w}</th>
                 ))}
                 <th className="text-left px-3 py-2 w-24 font-semibold text-slate-500">Initials</th>
+                <th className="px-2 py-2 w-16 text-center font-semibold text-slate-500" title="Logbook entry confirmed">Log</th>
                 <th className="text-left px-3 py-2 font-semibold text-slate-500">Remarks</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {record.week_items.map((item, idx) => (
-                <tr key={item.item_code} className="hover:bg-slate-50/50">
-                  <td className="px-3 py-2 font-bold text-slate-600">{item.item_code}</td>
-                  <td className="px-3 py-2 text-slate-700 leading-snug">{item.description}</td>
-                  {(["w1","w2","w3","w4","w5"] as const).map((wk) => (
-                    <td key={wk} className="px-2 py-2 text-center">
+              {record.week_items.map((item, idx) => {
+                const isChecked = item.w1 || item.w2 || item.w3 || item.w4 || item.w5;
+                return (
+                  <tr key={item.item_code} className="hover:bg-slate-50/50">
+                    <td className="px-3 py-2 font-bold text-slate-600">{item.item_code}</td>
+                    <td className="px-3 py-2 text-slate-700 leading-snug">{item.description}</td>
+                    {(["w1","w2","w3","w4","w5"] as const).map((wk) => (
+                      <td key={wk} className="px-2 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={item[wk]}
+                          onChange={(e) => setWeeklyItem(idx, wk, e.target.checked)}
+                          className="w-4 h-4 accent-blue-600 cursor-pointer"
+                        />
+                      </td>
+                    ))}
+                    <td className="px-3 py-2">
                       <input
-                        type="checkbox"
-                        checked={item[wk]}
-                        onChange={(e) => setWeeklyItem(idx, wk, e.target.checked)}
-                        className="w-4 h-4 accent-blue-600 cursor-pointer"
+                        className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        value={item.initials || ""}
+                        onChange={(e) => setWeeklyItem(idx, "initials", e.target.value)}
                       />
                     </td>
-                  ))}
-                  <td className="px-3 py-2">
-                    <input
-                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-                      value={item.initials || ""}
-                      onChange={(e) => setWeeklyItem(idx, "initials", e.target.value)}
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <input
-                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-                      value={item.remarks || ""}
-                      onChange={(e) => setWeeklyItem(idx, "remarks", e.target.value)}
-                    />
-                  </td>
-                </tr>
-              ))}
+                    <td className="px-2 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={item.logbook_confirmed || false}
+                        disabled={!isChecked}
+                        onChange={(e) => setWeeklyItem(idx, "logbook_confirmed", e.target.checked)}
+                        className="w-4 h-4 accent-emerald-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Confirm test recorded in engine log book"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        value={item.remarks || ""}
+                        onChange={(e) => setWeeklyItem(idx, "remarks", e.target.value)}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -222,20 +236,22 @@ function PeriodicSection({
               <th className="text-left px-3 py-2 font-semibold text-slate-500">Description</th>
               <th className="text-left px-3 py-2 w-36 font-semibold text-slate-500">Date of Test</th>
               <th className="text-left px-3 py-2 w-24 font-semibold text-slate-500">Initials</th>
-              <th className="text-left px-3 py-2 w-20 text-center font-semibold text-slate-500">N/A</th>
-              <th className="text-left px-3 py-2 font-semibold text-slate-500">Remarks</th>
+              <th className="text-left px-3 py-2 w-14 text-center font-semibold text-slate-500">N/A</th>
+              <th className="text-left px-3 py-2 font-semibold text-slate-500">Remarks / N/A Reason</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {items.map((item, idx) => (
-              <tr key={item.item_code} className={`hover:bg-slate-50/50 ${item.not_applicable ? "opacity-50" : ""}`}>
+              <tr key={item.item_code} className={`hover:bg-slate-50/50 ${item.not_applicable ? "bg-slate-50/50" : ""}`}>
                 <td className="px-3 py-2 font-bold text-slate-600">{item.item_code}</td>
-                <td className="px-3 py-2 text-slate-700 leading-snug">{item.description}</td>
+                <td className={`px-3 py-2 leading-snug ${item.not_applicable ? "text-slate-400 line-through" : "text-slate-700"}`}>
+                  {item.description}
+                </td>
                 <td className="px-3 py-2">
                   <input
                     type="date"
                     disabled={item.not_applicable}
-                    className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-slate-50"
+                    className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
                     value={item.test_date || ""}
                     onChange={(e) => onChange(idx, "test_date", e.target.value || null)}
                   />
@@ -243,7 +259,7 @@ function PeriodicSection({
                 <td className="px-3 py-2">
                   <input
                     disabled={item.not_applicable}
-                    className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-slate-50"
+                    className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
                     value={item.initials || ""}
                     onChange={(e) => onChange(idx, "initials", e.target.value)}
                   />
@@ -257,12 +273,21 @@ function PeriodicSection({
                   />
                 </td>
                 <td className="px-3 py-2">
-                  <input
-                    disabled={item.not_applicable}
-                    className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-slate-50"
-                    value={item.remarks || ""}
-                    onChange={(e) => onChange(idx, "remarks", e.target.value)}
-                  />
+                  {item.not_applicable ? (
+                    <input
+                      className="w-full px-2 py-1 border border-amber-200 bg-amber-50 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 placeholder:text-amber-400"
+                      placeholder="Reason for N/A (required)"
+                      value={item.na_reason || ""}
+                      onChange={(e) => onChange(idx, "na_reason", e.target.value)}
+                    />
+                  ) : (
+                    <input
+                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      placeholder="—"
+                      value={item.remarks || ""}
+                      onChange={(e) => onChange(idx, "remarks", e.target.value)}
+                    />
+                  )}
                 </td>
               </tr>
             ))}

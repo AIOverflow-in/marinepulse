@@ -25,7 +25,9 @@ import {
 } from "recharts";
 
 const TBN_WARN_THRESHOLD = 40;
+const TBN_LOW_THRESHOLD = 20;
 const FE_WARN_THRESHOLD = 200;
+const FE_CAUTION_THRESHOLD = 500;
 const FE_CRITICAL_THRESHOLD = 800;
 
 function tbnColor(val?: number | null): string {
@@ -45,6 +47,29 @@ function tbnBarColor(val?: number | null): string {
   if (val == null) return "#94a3b8";
   if (val < TBN_WARN_THRESHOLD) return "#f59e0b";
   return "#10b981";
+}
+
+function feBarColor(val?: number | null): string {
+  if (val == null) return "#94a3b8";
+  if (val >= FE_CRITICAL_THRESHOLD) return "#ef4444";
+  if (val >= FE_CAUTION_THRESHOLD) return "#f97316";
+  if (val >= FE_WARN_THRESHOLD) return "#f59e0b";
+  return "#10b981";
+}
+
+function cylinderDiagnosis(fe?: number | null, tbn?: number | null): { label: string; color: string } {
+  if (fe == null && tbn == null) return { label: "No data", color: "text-slate-400" };
+  if (fe != null && fe >= FE_CRITICAL_THRESHOLD)
+    return { label: "CRITICAL — Act immediately, investigate liner/ring wear", color: "text-red-600" };
+  if (fe != null && fe >= FE_CAUTION_THRESHOLD && tbn != null && tbn < TBN_LOW_THRESHOLD)
+    return { label: "Cold Corrosion risk — increase CLO feed rate or switch to higher BN oil", color: "text-orange-600" };
+  if (fe != null && fe >= FE_WARN_THRESHOLD)
+    return { label: "Elevated Fe — monitor closely", color: "text-amber-600" };
+  if (fe != null && fe < FE_WARN_THRESHOLD && tbn != null && tbn > TBN_WARN_THRESHOLD)
+    return { label: "Over-lubrication risk — consider decreasing CLO feed rate", color: "text-blue-600" };
+  if (fe != null && fe < FE_WARN_THRESHOLD && tbn != null && tbn < TBN_LOW_THRESHOLD)
+    return { label: "Low TBN — acid neutralization risk despite normal Fe", color: "text-amber-600" };
+  return { label: "Normal operation", color: "text-emerald-600" };
 }
 
 function buildBlankRecord(logId: string): MEPerformanceRecord {
@@ -149,11 +174,19 @@ export default function MEPerformancePage() {
     tbn: c.tbn_residual ?? null,
   }));
 
+  const feChartData = record.cylinders.map((c) => ({
+    name: `Cyl ${c.cylinder_number}`,
+    fe: c.fe_ppm ?? null,
+  }));
+
   const hasAnyTbnAnomaly = record.cylinders.some(
     (c) => c.tbn_residual != null && c.tbn_residual < TBN_WARN_THRESHOLD
   );
   const hasAnyFeAnomaly = record.cylinders.some(
     (c) => c.fe_ppm != null && c.fe_ppm >= FE_WARN_THRESHOLD
+  );
+  const hasDiagnosisData = record.cylinders.some(
+    (c) => c.fe_ppm != null || c.tbn_residual != null
   );
 
   return (
@@ -467,6 +500,58 @@ export default function MEPerformancePage() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Fe ppm Bar Chart */}
+      {feChartData.some((d) => d.fe != null) && (
+        <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+          <h2 className="text-sm font-semibold text-slate-700 mb-1">Fe ppm by Cylinder</h2>
+          <p className="text-xs text-slate-400 mb-4">
+            Green &lt;200 · Amber ≥200 · Orange ≥500 · Red ≥800 (critical)
+          </p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={feChartData} margin={{ top: 5, right: 10, bottom: 5, left: -10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, "auto"]} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "12px" }}
+                formatter={(val) => [`${val ?? ""}`, "Fe ppm"]}
+              />
+              <ReferenceLine y={FE_WARN_THRESHOLD} stroke="#f59e0b" strokeDasharray="4 4"
+                label={{ value: `Warn (${FE_WARN_THRESHOLD})`, position: "insideTopRight", fontSize: 10, fill: "#f59e0b" }} />
+              <ReferenceLine y={FE_CRITICAL_THRESHOLD} stroke="#ef4444" strokeDasharray="4 4"
+                label={{ value: `Critical (${FE_CRITICAL_THRESHOLD})`, position: "insideTopRight", fontSize: 10, fill: "#ef4444" }} />
+              <Bar dataKey="fe" radius={[4, 4, 0, 0]}>
+                {feChartData.map((entry, idx) => (
+                  <Cell key={idx} fill={feBarColor(entry.fe)} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Cylinder Diagnosis Cards */}
+      {hasDiagnosisData && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-slate-700 mb-3">Cylinder Health Diagnosis</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {record.cylinders.map((cyl) => {
+              const { label, color } = cylinderDiagnosis(cyl.fe_ppm, cyl.tbn_residual);
+              return (
+                <div key={cyl.cylinder_number} className="bg-white border border-slate-200 rounded-lg p-3">
+                  <div className="text-xs font-bold text-slate-600 mb-1.5">Cylinder {cyl.cylinder_number}</div>
+                  <div className="flex gap-3 text-xs mb-2">
+                    <span className="text-slate-500">Fe: <span className={feColor(cyl.fe_ppm)}>{cyl.fe_ppm != null ? `${cyl.fe_ppm} ppm` : "—"}</span></span>
+                    <span className="text-slate-500">TBN: <span className={tbnColor(cyl.tbn_residual)}>{cyl.tbn_residual != null ? cyl.tbn_residual : "—"}</span></span>
+                  </div>
+                  <p className={`text-xs leading-tight ${color}`}>{label}</p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -14,6 +14,7 @@ class WeeklyCheckItem(BaseModel):
     w5: bool = False
     initials: Optional[str] = None
     remarks: Optional[str] = None
+    logbook_confirmed: bool = False  # SMS requirement: test recorded in engine log book
 
 
 class PeriodicCheckItem(BaseModel):
@@ -23,6 +24,7 @@ class PeriodicCheckItem(BaseModel):
     initials: Optional[str] = None
     remarks: Optional[str] = None
     not_applicable: bool = False   # N/A items per vessel (e.g. monthly L, N on Front Cruiser)
+    na_reason: Optional[str] = None  # justification when not_applicable=True
 
 
 class SafetyCheckRecord(Document):

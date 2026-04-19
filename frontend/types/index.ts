@@ -255,6 +255,7 @@ export interface WeeklyCheckItem {
   w5: boolean;
   initials?: string;
   remarks?: string;
+  logbook_confirmed?: boolean;
 }
 
 export interface PeriodicCheckItem {
@@ -264,6 +265,7 @@ export interface PeriodicCheckItem {
   initials?: string;
   remarks?: string;
   not_applicable?: boolean;
+  na_reason?: string;
 }
 
 export interface SafetyCheckRecord {
@@ -278,11 +280,25 @@ export interface SafetyCheckRecord {
   updated_at?: string;
 }
 
+export type MaintenanceCategory =
+  | "ae"
+  | "me"
+  | "boiler"
+  | "deck"
+  | "safety"
+  | "bwts"
+  | "electrical"
+  | "troubleshoot"
+  | "engine_room";
+
+export type MaintenanceStatus = "complete" | "in_progress" | "deferred" | "pending";
+
 export interface MaintenanceTask {
   seq_number: number;
   description: string;
-  category: "engine_room" | "electrical";
+  category: MaintenanceCategory;
   performed: boolean;
+  status?: MaintenanceStatus;
   hours_actual?: number;
   remarks?: string;
 }

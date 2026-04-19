@@ -4,11 +4,26 @@ from datetime import datetime
 from typing import List, Optional
 
 
+MAINTENANCE_CATEGORIES = [
+    "ae",           # Auxiliary Engine
+    "me",           # Main Engine
+    "boiler",       # Boiler / Steam
+    "deck",         # Deck / Mooring
+    "safety",       # Safety & LSA
+    "bwts",         # Ballast Water Treatment System
+    "electrical",   # Electrical / Electronics
+    "troubleshoot", # Ongoing Troubleshoots
+    "engine_room",  # General Engine Room (legacy / catch-all)
+]
+
+
 class MaintenanceTask(BaseModel):
     seq_number: int
     description: str
-    category: str = "engine_room"   # engine_room | electrical
+    category: str = "engine_room"   # one of MAINTENANCE_CATEGORIES
     performed: bool = False
+    # status supersedes performed: complete | in_progress | deferred | pending
+    status: Optional[str] = None
     hours_actual: Optional[float] = None
     remarks: Optional[str] = None
 

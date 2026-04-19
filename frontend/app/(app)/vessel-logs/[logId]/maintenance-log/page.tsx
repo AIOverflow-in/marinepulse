@@ -4,18 +4,34 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import type { MaintenanceLogRecord, MaintenanceTask } from "@/types";
+import type { MaintenanceLogRecord, MaintenanceTask, MaintenanceCategory, MaintenanceStatus } from "@/types";
 import { ArrowLeft, Loader2, Save, CheckCircle2, Plus, Trash2 } from "lucide-react";
 
-type Tab = "engine_room" | "electrical";
+const CATEGORIES: { key: MaintenanceCategory; label: string; field: "er_tasks" | "electrical_tasks" }[] = [
+  { key: "ae",           label: "Aux Engine",     field: "er_tasks" },
+  { key: "me",           label: "Main Engine",    field: "er_tasks" },
+  { key: "boiler",       label: "Boiler",         field: "er_tasks" },
+  { key: "deck",         label: "Deck",           field: "er_tasks" },
+  { key: "safety",       label: "Safety & LSA",   field: "er_tasks" },
+  { key: "bwts",         label: "BWTS",           field: "er_tasks" },
+  { key: "electrical",   label: "Electrical",     field: "electrical_tasks" },
+  { key: "troubleshoot", label: "Troubleshoot",   field: "er_tasks" },
+];
 
-const TAB_LABELS: Record<Tab, string> = {
-  engine_room: "Engine Room",
-  electrical: "Electrical",
-};
+const STATUS_OPTIONS: { value: MaintenanceStatus; label: string; color: string }[] = [
+  { value: "complete",    label: "Complete",     color: "text-emerald-600 bg-emerald-50" },
+  { value: "in_progress", label: "In Progress",  color: "text-amber-600 bg-amber-50" },
+  { value: "deferred",    label: "Deferred",     color: "text-slate-500 bg-slate-100" },
+  { value: "pending",     label: "Pending",      color: "text-blue-500 bg-blue-50" },
+];
 
-function makeTask(category: Tab, seq: number): MaintenanceTask {
-  return { seq_number: seq, description: "", category, performed: false, hours_actual: undefined, remarks: "" };
+function resolveStatus(task: MaintenanceTask): MaintenanceStatus {
+  if (task.status) return task.status;
+  return task.performed ? "complete" : "pending";
+}
+
+function makeTask(category: MaintenanceCategory, seq: number): MaintenanceTask {
+  return { seq_number: seq, description: "", category, performed: false, status: "pending", hours_actual: undefined, remarks: "" };
 }
 
 export default function MaintenanceLogPage() {
@@ -24,7 +40,7 @@ export default function MaintenanceLogPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [tab, setTab] = useState<Tab>("engine_room");
+  const [activeCategory, setActiveCategory] = useState<MaintenanceCategory>("ae");
 
   useEffect(() => {
     api.get<MaintenanceLogRecord>(`/api/vessel-logs/${logId}/maintenance-log`)
@@ -33,36 +49,58 @@ export default function MaintenanceLogPage() {
       .finally(() => setLoading(false));
   }, [logId]);
 
-  function tasks(): MaintenanceTask[] {
-    if (!record) return [];
-    return tab === "engine_room" ? record.er_tasks : record.electrical_tasks;
+  const catConfig = CATEGORIES.find((c) => c.key === activeCategory)!;
+
+  function allTasksForField(field: "er_tasks" | "electrical_tasks"): MaintenanceTask[] {
+    return record ? record[field] : [];
   }
 
-  function setTasks(updated: MaintenanceTask[]) {
+  function tasksForCategory(): MaintenanceTask[] {
+    if (!record) return [];
+    const list = record[catConfig.field];
+    if (catConfig.field === "electrical_tasks") return list;
+    // for er_tasks, filter by category; legacy "engine_room" falls under all non-electrical tabs
+    return list.filter((t) => t.category === activeCategory || (t.category === "engine_room" && activeCategory === "me"));
+  }
+
+  function setTasksForCategory(updated: MaintenanceTask[]) {
     if (!record) return;
-    if (tab === "engine_room") {
-      setRecord({ ...record, er_tasks: updated });
-    } else {
+    const field = catConfig.field;
+    if (field === "electrical_tasks") {
       setRecord({ ...record, electrical_tasks: updated });
+      return;
     }
+    // merge updated tasks back into er_tasks, replacing only those of this category
+    const others = record.er_tasks.filter(
+      (t) => !(t.category === activeCategory || (t.category === "engine_room" && activeCategory === "me"))
+    );
+    setRecord({ ...record, er_tasks: [...others, ...updated] });
   }
 
   function updateTask(idx: number, field: keyof MaintenanceTask, value: unknown) {
-    const t = [...tasks()];
-    t[idx] = { ...t[idx], [field]: value };
-    setTasks(t);
+    const t = [...tasksForCategory()];
+    const updated = { ...t[idx], [field]: value };
+    // keep performed in sync with status
+    if (field === "status") {
+      updated.performed = value === "complete";
+    } else if (field === "performed") {
+      updated.status = value ? "complete" : "pending";
+    }
+    t[idx] = updated;
+    setTasksForCategory(t);
   }
 
   function addTask() {
-    const t = tasks();
-    const nextSeq = t.length > 0 ? Math.max(...t.map((x) => x.seq_number)) + 1 : 1;
-    setTasks([...t, makeTask(tab, nextSeq)]);
+    const t = tasksForCategory();
+    const allTasks = [...allTasksForField(catConfig.field)];
+    const nextSeq = allTasks.length > 0 ? Math.max(...allTasks.map((x) => x.seq_number)) + 1 : 1;
+    setTasksForCategory([...t, makeTask(activeCategory, nextSeq)]);
   }
 
   function removeTask(idx: number) {
-    const t = tasks().filter((_, i) => i !== idx);
-    // renumber
-    setTasks(t.map((task, i) => ({ ...task, seq_number: i + 1 })));
+    const filtered = tasksForCategory().filter((_, i) => i !== idx);
+    // don't renumber globally — just update filtered list
+    setTasksForCategory(filtered);
   }
 
   async function handleSave() {
@@ -93,8 +131,9 @@ export default function MaintenanceLogPage() {
 
   if (!record) return null;
 
-  const currentTasks = tasks();
-  const performedCount = currentTasks.filter((t) => t.performed).length;
+  const currentTasks = tasksForCategory();
+  const doneCount = currentTasks.filter((t) => resolveStatus(t) === "complete").length;
+  const inProgressCount = currentTasks.filter((t) => resolveStatus(t) === "in_progress").length;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -144,27 +183,38 @@ export default function MaintenanceLogPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-slate-200">
-        {(["engine_room", "electrical"] as Tab[]).map((t) => {
-          const count = (t === "engine_room" ? record.er_tasks : record.electrical_tasks).length;
-          const performed = (t === "engine_room" ? record.er_tasks : record.electrical_tasks).filter((x) => x.performed).length;
+      {/* 8 Category Tabs */}
+      <div className="flex gap-0.5 mb-4 border-b border-slate-200 overflow-x-auto">
+        {CATEGORIES.map((cat) => {
+          const list = record[cat.field];
+          const catTasks = cat.field === "electrical_tasks"
+            ? list
+            : list.filter((t) => t.category === cat.key || (t.category === "engine_room" && cat.key === "me"));
+          const done = catTasks.filter((t) => resolveStatus(t) === "complete").length;
+          const inProg = catTasks.filter((t) => resolveStatus(t) === "in_progress").length;
+          const isActive = activeCategory === cat.key;
           return (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                tab === t
+              key={cat.key}
+              onClick={() => setActiveCategory(cat.key)}
+              className={`flex-shrink-0 px-3 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
+                isActive
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
-              {TAB_LABELS[t]}
-              <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${
-                tab === t ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500"
-              }`}>
-                {performed}/{count}
-              </span>
+              {cat.label}
+              {catTasks.length > 0 && (
+                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full ${
+                  inProg > 0
+                    ? "bg-amber-100 text-amber-600"
+                    : done === catTasks.length
+                    ? "bg-emerald-50 text-emerald-600"
+                    : isActive ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500"
+                }`}>
+                  {done}/{catTasks.length}
+                </span>
+              )}
             </button>
           );
         })}
@@ -178,8 +228,8 @@ export default function MaintenanceLogPage() {
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="text-left px-3 py-2.5 w-10 font-semibold text-slate-500">#</th>
                 <th className="text-left px-3 py-2.5 font-semibold text-slate-500">Description</th>
-                <th className="px-3 py-2.5 w-20 text-center font-semibold text-slate-500">Done</th>
-                <th className="text-left px-3 py-2.5 w-24 font-semibold text-slate-500">Hrs</th>
+                <th className="text-left px-3 py-2.5 w-36 font-semibold text-slate-500">Status</th>
+                <th className="text-left px-3 py-2.5 w-20 font-semibold text-slate-500">Hrs</th>
                 <th className="text-left px-3 py-2.5 font-semibold text-slate-500">Remarks</th>
                 <th className="w-10 px-2 py-2.5"></th>
               </tr>
@@ -188,71 +238,86 @@ export default function MaintenanceLogPage() {
               {currentTasks.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">
-                    No tasks yet. Click "+ Add Task" below to begin.
+                    No tasks yet for this category. Click &ldquo;+ Add Task&rdquo; below to begin.
                   </td>
                 </tr>
               )}
-              {currentTasks.map((task, idx) => (
-                <tr key={idx} className={`hover:bg-slate-50/50 ${task.performed ? "bg-emerald-50/30" : ""}`}>
-                  <td className="px-3 py-2 font-mono text-slate-500 font-semibold">{task.seq_number}</td>
-                  <td className="px-3 py-2">
-                    <textarea
-                      rows={1}
-                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none overflow-hidden"
-                      placeholder="Task description…"
-                      value={task.description}
-                      onChange={(e) => {
-                        e.target.style.height = "auto";
-                        e.target.style.height = e.target.scrollHeight + "px";
-                        updateTask(idx, "description", e.target.value);
-                      }}
-                      onFocus={(e) => {
-                        e.target.style.height = "auto";
-                        e.target.style.height = e.target.scrollHeight + "px";
-                      }}
-                    />
-                  </td>
-                  <td className="px-3 py-2 text-center">
-                    <input
-                      type="checkbox"
-                      checked={task.performed}
-                      onChange={(e) => updateTask(idx, "performed", e.target.checked)}
-                      className="w-4 h-4 accent-emerald-600 cursor-pointer"
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-                      placeholder="—"
-                      value={task.hours_actual ?? ""}
-                      onChange={(e) => updateTask(idx, "hours_actual", e.target.value ? parseFloat(e.target.value) : undefined)}
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <input
-                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-                      placeholder="—"
-                      value={task.remarks || ""}
-                      onChange={(e) => updateTask(idx, "remarks", e.target.value)}
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <button
-                      onClick={() => removeTask(idx)}
-                      className="p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {currentTasks.map((task, idx) => {
+                const st = resolveStatus(task);
+                return (
+                  <tr
+                    key={idx}
+                    className={`hover:bg-slate-50/50 ${
+                      st === "complete" ? "bg-emerald-50/30" :
+                      st === "in_progress" ? "bg-amber-50/30" :
+                      st === "deferred" ? "bg-slate-50/50" : ""
+                    }`}
+                  >
+                    <td className="px-3 py-2 font-mono text-slate-500 font-semibold">{task.seq_number}</td>
+                    <td className="px-3 py-2">
+                      <textarea
+                        rows={1}
+                        className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none overflow-hidden"
+                        placeholder="Task description…"
+                        value={task.description}
+                        onChange={(e) => {
+                          e.target.style.height = "auto";
+                          e.target.style.height = e.target.scrollHeight + "px";
+                          updateTask(idx, "description", e.target.value);
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.height = "auto";
+                          e.target.style.height = e.target.scrollHeight + "px";
+                        }}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <select
+                        value={st}
+                        onChange={(e) => updateTask(idx, "status", e.target.value)}
+                        className={`w-full px-2 py-1 rounded text-xs border-0 font-medium focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${
+                          STATUS_OPTIONS.find((s) => s.value === st)?.color ?? ""
+                        }`}
+                      >
+                        {STATUS_OPTIONS.map((s) => (
+                          <option key={s.value} value={s.value}>{s.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        placeholder="—"
+                        value={task.hours_actual ?? ""}
+                        onChange={(e) => updateTask(idx, "hours_actual", e.target.value ? parseFloat(e.target.value) : undefined)}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        placeholder="—"
+                        value={task.remarks || ""}
+                        onChange={(e) => updateTask(idx, "remarks", e.target.value)}
+                      />
+                    </td>
+                    <td className="px-2 py-2">
+                      <button
+                        onClick={() => removeTask(idx)}
+                        className="p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-        <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+        <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center gap-4">
           <button
             onClick={addTask}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
@@ -261,8 +326,10 @@ export default function MaintenanceLogPage() {
             Add Task
           </button>
           {currentTasks.length > 0 && (
-            <span className="ml-4 text-xs text-slate-400">
-              {performedCount} of {currentTasks.length} performed
+            <span className="text-xs text-slate-400">
+              {doneCount} complete
+              {inProgressCount > 0 && <>, {inProgressCount} in progress</>}
+              {" "}/ {currentTasks.length} total
             </span>
           )}
         </div>

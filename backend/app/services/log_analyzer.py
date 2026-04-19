@@ -21,47 +21,84 @@ _openai = AsyncOpenAI(api_key=settings.openai_api_key)
 # ─── Anomaly thresholds ───────────────────────────────────────────────────────
 # Source: ME Scrape-Down Excel "Drain oil rec" sheet + GM 2.10.7 A3
 TBN_RESIDUAL_WARN = 40.0       # scrape-down TBN residual: warn below this
-FE_PPM_WARN = 200.0             # Fe ppm: warn above this
+FE_PPM_CAUTION = 200.0         # Fe ppm: caution above this
 FE_PPM_CRITICAL = 800.0        # Fe ppm: critical above this (act immediately)
-DRAIN_OIL_BN_CRITICAL = 15.0  # drain oil BN: critical below this
+FE_PPM_COLD_CORROSION = 500.0  # Fe ppm above this + TBN < 20 = cold corrosion
+TBN_LOW_WARN = 20.0            # TBN below this = acid neutralization risk
+TBN_HIGH_OVER_LUB = 40.0       # TBN above this + Fe < 200 = over-lubrication
+DRAIN_OIL_BN_CRITICAL = 15.0   # drain oil BN: critical below this
+
+# Mandatory weekly safety items — item code: description
+# Items C, D, E are SOLAS-critical (fire/emergency pumps + FMIV)
+MANDATORY_WEEKLY_ITEMS = {
+    "C": "Emergency fire pump test run (8 kg/cm2)",
+    "D": "Fire pumps test run (8 kg/cm2)",
+    "E": "Integrity test of fire main Isolation valve (FMIV)",
+}
 
 # ─── Anomaly detection ────────────────────────────────────────────────────────
 
 async def detect_anomalies(log_id: str) -> List[str]:
     """
-    Inspect ME performance records for this log and return list of alert strings.
-    Called automatically when ME performance record is saved.
+    Inspect ME performance and safety check records for this log.
+    Returns list of alert strings.
     """
     alerts: List[str] = []
+    lid = PydanticObjectId(log_id)
 
-    me = await MEPerformanceRecord.find_one(
-        MEPerformanceRecord.log_id == PydanticObjectId(log_id)
-    )
-    if not me:
-        return alerts
+    # ── ME performance: 6-rule diagnostic ─────────────────────────────────────
+    me = await MEPerformanceRecord.find_one(MEPerformanceRecord.log_id == lid)
+    if me:
+        for cyl in me.cylinders:
+            n = cyl.cylinder_number
+            fe = cyl.fe_ppm
+            tbn = cyl.tbn_residual
 
-    for cyl in me.cylinders:
-        n = cyl.cylinder_number
-
-        if cyl.tbn_residual is not None and cyl.tbn_residual < TBN_RESIDUAL_WARN:
-            alerts.append(
-                f"Cylinder {n}: TBN residual {cyl.tbn_residual} is below warning threshold ({TBN_RESIDUAL_WARN})"
-            )
-
-        if cyl.fe_ppm is not None:
-            if cyl.fe_ppm >= FE_PPM_CRITICAL:
+            if fe is not None and fe >= FE_PPM_CRITICAL:
                 alerts.append(
-                    f"Cylinder {n}: Fe ppm {cyl.fe_ppm} is CRITICAL (>= {FE_PPM_CRITICAL}) — act immediately"
+                    f"Cylinder {n}: Fe ppm {fe} is CRITICAL (≥ {FE_PPM_CRITICAL}) — act immediately, investigate liner/ring wear"
                 )
-            elif cyl.fe_ppm >= FE_PPM_WARN:
+            elif fe is not None and fe >= FE_PPM_COLD_CORROSION and tbn is not None and tbn < TBN_LOW_WARN:
                 alerts.append(
-                    f"Cylinder {n}: Fe ppm {cyl.fe_ppm} is elevated (>= {FE_PPM_WARN}) — monitor closely"
+                    f"Cylinder {n}: Cold Corrosion risk — Fe {fe} ppm (high) + TBN residual {tbn} (low) — increase CLO feed rate or switch to higher BN oil"
+                )
+            elif fe is not None and fe >= FE_PPM_CAUTION:
+                alerts.append(
+                    f"Cylinder {n}: Fe ppm {fe} is elevated (≥ {FE_PPM_CAUTION}) — monitor closely"
+                )
+            elif fe is not None and fe < FE_PPM_CAUTION and tbn is not None and tbn > TBN_HIGH_OVER_LUB:
+                alerts.append(
+                    f"Cylinder {n}: Over-lubrication risk — Fe {fe} ppm (low) + TBN residual {tbn} (high) — consider decreasing CLO feed rate to prevent additive deposits"
+                )
+            elif fe is not None and fe < FE_PPM_CAUTION and tbn is not None and tbn < TBN_LOW_WARN:
+                alerts.append(
+                    f"Cylinder {n}: Low TBN residual {tbn} — acid neutralization risk despite normal Fe {fe} ppm — check oil quality and feed rate"
                 )
 
-        if cyl.drain_oil_bn is not None and cyl.drain_oil_bn < DRAIN_OIL_BN_CRITICAL:
-            alerts.append(
-                f"Cylinder {n}: Drain oil BN {cyl.drain_oil_bn} is critically low (< {DRAIN_OIL_BN_CRITICAL})"
-            )
+            if tbn is not None and tbn < TBN_RESIDUAL_WARN:
+                # Only add if not already covered by a compound rule above
+                if not any(f"Cylinder {n}:" in a for a in alerts):
+                    alerts.append(
+                        f"Cylinder {n}: TBN residual {tbn} is below warning threshold ({TBN_RESIDUAL_WARN})"
+                    )
+
+            if cyl.drain_oil_bn is not None and cyl.drain_oil_bn < DRAIN_OIL_BN_CRITICAL:
+                alerts.append(
+                    f"Cylinder {n}: Drain oil BN {cyl.drain_oil_bn} is critically low (< {DRAIN_OIL_BN_CRITICAL})"
+                )
+
+    # ── Safety checks: mandatory SOLAS-critical items ─────────────────────────
+    safety = await SafetyCheckRecord.find_one(SafetyCheckRecord.log_id == lid)
+    if safety:
+        checked_codes = {
+            item.item_code
+            for item in safety.week_items
+            if item.w1 or item.w2 or item.w3 or item.w4 or item.w5
+        }
+        for code, description in MANDATORY_WEEKLY_ITEMS.items():
+            if code not in checked_codes:
+                prefix = "FMIV MISSED" if code == "E" else f"Safety item {code} missed"
+                alerts.append(f"{prefix}: {description} — not checked this week")
 
     return alerts
 
