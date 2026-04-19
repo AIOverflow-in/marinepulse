@@ -32,7 +32,8 @@ from app.models.me_performance_record import MEPerformanceRecord
 
 async def init_db():
     global _db
-    client = AsyncIOMotorClient(settings.mongodb_uri)
+    import certifi
+    client = AsyncIOMotorClient(settings.mongodb_uri, tlsCAFile=certifi.where())
     db_name = settings.mongodb_uri.split("/")[-1].split("?")[0]
     _db = client[db_name]
     await init_beanie(

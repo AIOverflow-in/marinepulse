@@ -676,13 +676,12 @@ async def seed():
                 grade = grade_from_vhi(percentage)
                 deficiency_count = sum(1 for s in scores_data if isinstance(s["score"], int) and s["score"] < 3)
 
-                await inspection.set({
-                    "vhi_score": percentage,
-                    "vhi_grade": grade,
-                    "scored_items": len(item_docs),
-                    "deficiency_count": deficiency_count,
-                    "critical_deficiency_count": 0,
-                })
+                inspection.vhi_score = percentage
+                inspection.vhi_grade = grade
+                inspection.scored_items = len(item_docs)
+                inspection.deficiency_count = deficiency_count
+                inspection.critical_deficiency_count = 0
+                await inspection.save()
                 inspection_count += 1
                 print(f"  {vessel.name} [{insp_date.strftime('%Y-%m')}] Score={percentage}% ({grade}) deficiencies={deficiency_count}")
 
