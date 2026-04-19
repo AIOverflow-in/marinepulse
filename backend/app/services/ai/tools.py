@@ -116,4 +116,119 @@ TOOLS = [
             },
         },
     },
+    # ── AuditVault AI / Vessel Log tools ─────────────────────────────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "get_vessel_weekly_logs",
+            "description": "Get recent weekly operational logs for a vessel, showing completion status of all 5 AuditVault templates (safety checks, maintenance, photos, drills, ME performance), anomaly count, and submission status.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "vessel_name": {
+                        "type": "string",
+                        "description": "Name or partial name of the vessel",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of recent weekly logs to return (default 5, max 10)",
+                        "default": 5,
+                    },
+                },
+                "required": ["vessel_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weekly_log_detail",
+            "description": "Get full detail of a specific weekly log: anomalies detected, AI superintendent report, completion of each template, drill count, photo count. Use this when the user asks about a specific week's operational summary or AI report.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "vessel_name": {
+                        "type": "string",
+                        "description": "Name or partial name of the vessel",
+                    },
+                    "week_number": {
+                        "type": "integer",
+                        "description": "ISO week number (1-52). If omitted, returns the most recent log.",
+                    },
+                    "year": {
+                        "type": "integer",
+                        "description": "Year (e.g. 2026). If omitted, defaults to current year.",
+                    },
+                },
+                "required": ["vessel_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_me_performance_data",
+            "description": "Get Main Engine cylinder performance data (TBN residuals, Fe ppm, diagnosis) for a vessel's weekly log. Use this for engine health questions, lubrication analysis, cold corrosion risk, or over-lubrication alerts.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "vessel_name": {
+                        "type": "string",
+                        "description": "Name or partial name of the vessel",
+                    },
+                    "week_number": {
+                        "type": "integer",
+                        "description": "ISO week number. If omitted, returns most recent.",
+                    },
+                    "year": {
+                        "type": "integer",
+                        "description": "Year. If omitted, defaults to current year.",
+                    },
+                },
+                "required": ["vessel_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_safety_check_compliance",
+            "description": "Get safety system check compliance for a vessel's weekly log — which items were completed, which were missed, and N/A items with reasons. Covers weekly, monthly, and quarterly tests per GM 2.10.7 A3.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "vessel_name": {
+                        "type": "string",
+                        "description": "Name or partial name of the vessel",
+                    },
+                    "week_number": {
+                        "type": "integer",
+                        "description": "ISO week number. If omitted, returns most recent.",
+                    },
+                    "year": {
+                        "type": "integer",
+                        "description": "Year. If omitted, defaults to current year.",
+                    },
+                },
+                "required": ["vessel_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_overdue_safety_alerts",
+            "description": "Get overdue safety test alerts for a vessel — items that haven't been tested within their required frequency (weekly/monthly/quarterly). Returns days overdue and last performed date.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "vessel_name": {
+                        "type": "string",
+                        "description": "Name or partial name of the vessel",
+                    },
+                },
+                "required": ["vessel_name"],
+            },
+        },
+    },
 ]

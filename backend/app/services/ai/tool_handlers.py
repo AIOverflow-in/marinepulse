@@ -1,4 +1,5 @@
 import json
+from datetime import date
 from typing import Any, Dict
 from beanie import PydanticObjectId
 
@@ -7,6 +8,12 @@ from app.models.inspection import Inspection
 from app.models.inspection_score import InspectionScore
 from app.models.inspection_request import InspectionRequest
 from app.models.checklist_item import ChecklistItem
+from app.models.vessel_weekly_log import VesselWeeklyLog
+from app.models.safety_check_record import SafetyCheckRecord
+from app.models.maintenance_log_record import MaintenanceLogRecord
+from app.models.maintenance_photo import MaintenancePhoto
+from app.models.drill_record import DrillRecord
+from app.models.me_performance_record import MEPerformanceRecord
 
 
 async def _find_vessel_by_name(name: str):
@@ -231,6 +238,247 @@ async def handle_get_pending_inspections(args: Dict[str, Any]) -> str:
     ])
 
 
+# ── AuditVault AI tool helpers ────────────────────────────────────────────────
+
+def _cylinder_diagnosis(fe: float | None, tbn: float | None) -> str:
+    """Mirror the 6-rule diagnostic engine used in log_analyzer.py."""
+    if fe is None or tbn is None:
+        return "Insufficient data"
+    if fe >= 800:
+        return "CRITICAL — Fe very high, act immediately"
+    if fe >= 500 and tbn < 20:
+        return "Cold Corrosion risk — increase CLO feed rate or switch to higher BN oil"
+    if fe >= 200:
+        return "CAUTION — Fe elevated, monitor closely"
+    if fe < 200 and tbn > 40:
+        return "Over-lubrication risk — consider decreasing CLO feed rate"
+    if fe < 200 and tbn < 20:
+        return "Low TBN / acid neutralisation risk — check CLO dosing"
+    return "Normal"
+
+
+async def _find_log(vessel: Vessel, week_number: int | None, year: int | None) -> VesselWeeklyLog | None:
+    filters = [VesselWeeklyLog.vessel_id == vessel.id]
+    if year:
+        filters.append(VesselWeeklyLog.year == year)
+    if week_number:
+        filters.append(VesselWeeklyLog.week_number == week_number)
+    return await VesselWeeklyLog.find(*filters).sort(-VesselWeeklyLog.created_at).first_or_none()
+
+
+async def handle_get_vessel_weekly_logs(args: Dict[str, Any]) -> str:
+    vessel_name = args.get("vessel_name", "")
+    limit = min(int(args.get("limit", 5)), 10)
+
+    vessel = await _find_vessel_by_name(vessel_name)
+    if not vessel:
+        return json.dumps({"error": f"No vessel found matching '{vessel_name}'"})
+
+    logs = await VesselWeeklyLog.find(
+        VesselWeeklyLog.vessel_id == vessel.id,
+    ).sort(-VesselWeeklyLog.created_at).limit(limit).to_list()
+
+    result = []
+    for log in logs:
+        lid = log.id
+        safety = await SafetyCheckRecord.find_one(SafetyCheckRecord.log_id == lid)
+        maintenance = await MaintenanceLogRecord.find_one(MaintenanceLogRecord.log_id == lid)
+        photo_count = await MaintenancePhoto.find(MaintenancePhoto.log_id == lid).count()
+        drill_count = await DrillRecord.find(DrillRecord.log_id == lid).count()
+        me = await MEPerformanceRecord.find_one(MEPerformanceRecord.log_id == lid)
+        result.append({
+            "week": log.week_number,
+            "year": log.year,
+            "status": log.status,
+            "anomaly_count": len(log.anomalies),
+            "has_safety_checks": safety is not None,
+            "has_maintenance_log": maintenance is not None,
+            "photo_count": photo_count,
+            "drill_count": drill_count,
+            "has_me_performance": me is not None,
+            "templates_complete": sum([
+                safety is not None,
+                maintenance is not None,
+                photo_count > 0,
+                drill_count > 0,
+                me is not None,
+            ]),
+        })
+
+    return json.dumps({"vessel_name": vessel.name, "logs": result})
+
+
+async def handle_get_weekly_log_detail(args: Dict[str, Any]) -> str:
+    vessel_name = args.get("vessel_name", "")
+    week_number = args.get("week_number")
+    year = args.get("year")
+
+    vessel = await _find_vessel_by_name(vessel_name)
+    if not vessel:
+        return json.dumps({"error": f"No vessel found matching '{vessel_name}'"})
+
+    log = await _find_log(vessel, week_number, year)
+    if not log:
+        return json.dumps({"error": f"No weekly log found for {vessel.name} week={week_number} year={year}"})
+
+    lid = log.id
+    safety = await SafetyCheckRecord.find_one(SafetyCheckRecord.log_id == lid)
+    maintenance = await MaintenanceLogRecord.find_one(MaintenanceLogRecord.log_id == lid)
+    photo_count = await MaintenancePhoto.find(MaintenancePhoto.log_id == lid).count()
+    drills = await DrillRecord.find(DrillRecord.log_id == lid).to_list()
+    me = await MEPerformanceRecord.find_one(MEPerformanceRecord.log_id == lid)
+
+    maintenance_summary = None
+    if maintenance:
+        all_tasks = maintenance.er_tasks + maintenance.electrical_tasks
+        done = sum(1 for t in all_tasks if t.performed or (t.status and t.status in ("complete",)))
+        in_prog = sum(1 for t in all_tasks if t.status == "in_progress")
+        maintenance_summary = {"total_tasks": len(all_tasks), "completed": done, "in_progress": in_prog}
+
+    detail = {
+        "vessel_name": vessel.name,
+        "week": log.week_number,
+        "year": log.year,
+        "status": log.status,
+        "anomalies": log.anomalies,
+        "ai_report_available": bool(log.ai_report),
+        "ai_report_preview": (log.ai_report[:500] + "…") if log.ai_report else None,
+        "safety_checks": "complete" if safety else "missing",
+        "maintenance_log": maintenance_summary if maintenance else "missing",
+        "photos": photo_count,
+        "drills": [{"type": d.drill_type_label if hasattr(d, "drill_type_label") else d.drill_type, "date": str(d.drill_date), "attendees": d.attendee_count} for d in drills],
+        "me_performance": "recorded" if me else "missing",
+    }
+    return json.dumps(detail)
+
+
+async def handle_get_me_performance_data(args: Dict[str, Any]) -> str:
+    vessel_name = args.get("vessel_name", "")
+    week_number = args.get("week_number")
+    year = args.get("year")
+
+    vessel = await _find_vessel_by_name(vessel_name)
+    if not vessel:
+        return json.dumps({"error": f"No vessel found matching '{vessel_name}'"})
+
+    log = await _find_log(vessel, week_number, year)
+    if not log:
+        return json.dumps({"error": f"No weekly log found for {vessel.name}"})
+
+    me = await MEPerformanceRecord.find_one(MEPerformanceRecord.log_id == log.id)
+    if not me:
+        return json.dumps({"error": f"No ME performance record for {vessel.name} week {log.week_number}/{log.year}"})
+
+    cylinders = []
+    for c in me.cylinders:
+        cylinders.append({
+            "cylinder": c.cylinder_number,
+            "tbn_residual": c.tbn_residual,
+            "fe_ppm": c.fe_ppm,
+            "liner_wear_mm": c.liner_wear_mm,
+            "diagnosis": _cylinder_diagnosis(c.fe_ppm, c.tbn_residual),
+        })
+
+    return json.dumps({
+        "vessel_name": vessel.name,
+        "week": log.week_number,
+        "year": log.year,
+        "record_date": str(me.record_date),
+        "oil_type": me.oil_type,
+        "tbn_nominal": me.tbn_nominal,
+        "engine_run_hours": me.engine_run_hours,
+        "shaft_power_kw": me.shaft_power_kw,
+        "speed_rpm": me.speed_rpm,
+        "sulphur_content_pct": me.sulphur_content_pct,
+        "cylinders": cylinders,
+        "notes": me.notes,
+    })
+
+
+async def handle_get_safety_check_compliance(args: Dict[str, Any]) -> str:
+    vessel_name = args.get("vessel_name", "")
+    week_number = args.get("week_number")
+    year = args.get("year")
+
+    vessel = await _find_vessel_by_name(vessel_name)
+    if not vessel:
+        return json.dumps({"error": f"No vessel found matching '{vessel_name}'"})
+
+    log = await _find_log(vessel, week_number, year)
+    if not log:
+        return json.dumps({"error": f"No weekly log found for {vessel.name}"})
+
+    safety = await SafetyCheckRecord.find_one(SafetyCheckRecord.log_id == log.id)
+    if not safety:
+        return json.dumps({"error": f"No safety check record for {vessel.name} week {log.week_number}/{log.year}"})
+
+    # Weekly: item is "done" if any of w1-w5 ticked
+    weekly_done = [i for i in safety.week_items if any([i.w1, i.w2, i.w3, i.w4, i.w5])]
+    weekly_missed = [i for i in safety.week_items if not any([i.w1, i.w2, i.w3, i.w4, i.w5])]
+
+    monthly_done = [i for i in safety.monthly_items if i.test_date or i.not_applicable]
+    monthly_missed = [i for i in safety.monthly_items if not i.test_date and not i.not_applicable]
+    monthly_na = [{"code": i.item_code, "reason": i.na_reason} for i in safety.monthly_items if i.not_applicable]
+
+    quarterly_done = [i for i in safety.quarterly_items if i.test_date or i.not_applicable]
+    quarterly_missed = [i for i in safety.quarterly_items if not i.test_date and not i.not_applicable]
+    quarterly_na = [{"code": i.item_code, "reason": i.na_reason} for i in safety.quarterly_items if i.not_applicable]
+
+    return json.dumps({
+        "vessel_name": vessel.name,
+        "week": log.week_number,
+        "year": log.year,
+        "completed_by": safety.completed_by,
+        "position": safety.position,
+        "weekly": {
+            "total": len(safety.week_items),
+            "completed": len(weekly_done),
+            "missed": [{"code": i.item_code, "description": i.description} for i in weekly_missed],
+        },
+        "monthly": {
+            "total": len(safety.monthly_items),
+            "completed": len(monthly_done),
+            "not_applicable": monthly_na,
+            "missed": [{"code": i.item_code, "description": i.description} for i in monthly_missed],
+        },
+        "quarterly": {
+            "total": len(safety.quarterly_items),
+            "completed": len(quarterly_done),
+            "not_applicable": quarterly_na,
+            "missed": [{"code": i.item_code, "description": i.description} for i in quarterly_missed],
+        },
+    })
+
+
+async def handle_get_overdue_safety_alerts(args: Dict[str, Any]) -> str:
+    vessel_name = args.get("vessel_name", "")
+
+    vessel = await _find_vessel_by_name(vessel_name)
+    if not vessel:
+        return json.dumps({"error": f"No vessel found matching '{vessel_name}'"})
+
+    from app.services.log_analyzer import get_overdue_alerts
+    alerts = await get_overdue_alerts(str(vessel.id))
+
+    if not alerts:
+        return json.dumps({"vessel_name": vessel.name, "message": "All safety tests up to date", "alerts": []})
+
+    return json.dumps({
+        "vessel_name": vessel.name,
+        "alert_count": len(alerts),
+        "alerts": [
+            {
+                "item_code": a["item_code"],
+                "description": a["description"],
+                "frequency": a["frequency"],
+                "days_overdue": a["days_overdue"],
+                "last_done": a.get("last_done"),
+            }
+            for a in alerts
+        ],
+    })
+
+
 TOOL_HANDLERS = {
     "get_vessel_inspection_summary": handle_get_vessel_inspection_summary,
     "get_fleet_vhi_ranking": handle_get_fleet_vhi_ranking,
@@ -238,4 +486,10 @@ TOOL_HANDLERS = {
     "get_category_performance": handle_get_category_performance,
     "compare_vessels": handle_compare_vessels,
     "get_pending_inspections": handle_get_pending_inspections,
+    # AuditVault AI tools
+    "get_vessel_weekly_logs": handle_get_vessel_weekly_logs,
+    "get_weekly_log_detail": handle_get_weekly_log_detail,
+    "get_me_performance_data": handle_get_me_performance_data,
+    "get_safety_check_compliance": handle_get_safety_check_compliance,
+    "get_overdue_safety_alerts": handle_get_overdue_safety_alerts,
 }
