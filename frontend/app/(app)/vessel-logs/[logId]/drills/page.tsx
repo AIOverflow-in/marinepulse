@@ -14,6 +14,13 @@ import {
   X,
   Save,
   FileText,
+  MapPin,
+  Users,
+  User,
+  Calendar,
+  Clock,
+  Camera,
+  AlertCircle,
 } from "lucide-react";
 
 const DRILL_TYPE_LABELS: Record<string, string> = {
@@ -30,19 +37,23 @@ const DRILL_TYPE_LABELS: Record<string, string> = {
   security_drill: "Security Drill",
 };
 
-const DRILL_TYPE_COLORS: Record<string, string> = {
-  fire_drill: "bg-red-100 text-red-700",
-  abandon_ship_drill: "bg-orange-100 text-orange-700",
-  man_overboard_drill: "bg-blue-100 text-blue-700",
-  enclosed_space_drill: "bg-yellow-100 text-yellow-700",
-  lsa_routine_check: "bg-emerald-100 text-emerald-700",
-  qs_safety_meeting: "bg-slate-100 text-slate-700",
-  lifeboat_drill: "bg-cyan-100 text-cyan-700",
-  medical_drill: "bg-pink-100 text-pink-700",
-  oil_spill_drill: "bg-amber-100 text-amber-700",
-  emergency_steering_drill: "bg-violet-100 text-violet-700",
-  security_drill: "bg-indigo-100 text-indigo-700",
+const DRILL_HEADER_STYLES: Record<string, { header: string; badge: string }> = {
+  fire_drill:              { header: "bg-red-50 border-red-100",      badge: "bg-red-100 text-red-700" },
+  abandon_ship_drill:      { header: "bg-orange-50 border-orange-100", badge: "bg-orange-100 text-orange-700" },
+  man_overboard_drill:     { header: "bg-blue-50 border-blue-100",    badge: "bg-blue-100 text-blue-700" },
+  enclosed_space_drill:    { header: "bg-yellow-50 border-yellow-100", badge: "bg-yellow-100 text-yellow-700" },
+  lsa_routine_check:       { header: "bg-emerald-50 border-emerald-100", badge: "bg-emerald-100 text-emerald-700" },
+  qs_safety_meeting:       { header: "bg-slate-50 border-slate-200",   badge: "bg-slate-100 text-slate-700" },
+  lifeboat_drill:          { header: "bg-cyan-50 border-cyan-100",     badge: "bg-cyan-100 text-cyan-700" },
+  medical_drill:           { header: "bg-pink-50 border-pink-100",     badge: "bg-pink-100 text-pink-700" },
+  oil_spill_drill:         { header: "bg-amber-50 border-amber-100",   badge: "bg-amber-100 text-amber-700" },
+  emergency_steering_drill:{ header: "bg-violet-50 border-violet-100", badge: "bg-violet-100 text-violet-700" },
+  security_drill:          { header: "bg-indigo-50 border-indigo-100", badge: "bg-indigo-100 text-indigo-700" },
 };
+
+function getDrillStyle(type: string) {
+  return DRILL_HEADER_STYLES[type] || { header: "bg-slate-50 border-slate-200", badge: "bg-slate-100 text-slate-700" };
+}
 
 interface DrillForm {
   drill_type: string;
@@ -50,7 +61,7 @@ interface DrillForm {
   drill_time: string;
   location: string;
   conducted_by: string;
-  attendees_text: string;   // newline-separated crew names
+  attendees_text: string;
   observations: string;
   corrective_actions: string;
 }
@@ -194,7 +205,7 @@ export default function DrillsPage() {
         <span className="text-slate-800 font-medium">Drills & Training</span>
       </div>
 
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Drills & LSA Training</h1>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -214,63 +225,34 @@ export default function DrillsPage() {
         <div className="flex flex-col items-center justify-center py-20 bg-white border border-slate-200 rounded-xl text-slate-400">
           <FileText className="w-10 h-10 mb-3 opacity-30" />
           <p className="text-sm font-medium">No drills recorded yet</p>
-          <p className="text-xs mt-1">Click "Add Drill" to log a drill or safety meeting</p>
+          <p className="text-xs mt-1">Click &ldquo;Add Drill&rdquo; to log a drill or safety meeting</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50">
-                <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs">Type</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs">Date</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs">Location</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs">Conducted by</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs">Attendees</th>
-                <th className="px-4 py-3 w-20"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {drills.map((drill) => (
-                <tr key={drill.id} className="hover:bg-slate-50/50">
-                  <td className="px-4 py-3">
-                    <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${
-                      DRILL_TYPE_COLORS[drill.drill_type] || "bg-slate-100 text-slate-700"
-                    }`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {drills.map((drill) => {
+            const style = getDrillStyle(drill.drill_type);
+            return (
+              <div
+                key={drill.id}
+                className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
+              >
+                {/* Card header */}
+                <div className={`px-4 py-3 border-b ${style.header}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`inline-flex text-xs font-bold px-2.5 py-1 rounded-full ${style.badge}`}>
                       {DRILL_TYPE_LABELS[drill.drill_type] || drill.drill_type}
                     </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-700 text-xs">
-                    {formatDate(drill.drill_date)}
-                    {drill.drill_time && (
-                      <span className="text-slate-400 ml-1">{drill.drill_time}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600 text-xs">{drill.location || "—"}</td>
-                  <td className="px-4 py-3 text-slate-700 text-xs">{drill.conducted_by}</td>
-                  <td className="px-4 py-3 text-xs text-slate-600">
-                    {drill.attendees && drill.attendees.length > 0 ? (
-                      <span title={drill.attendees.join(", ")}>
-                        {drill.attendees.slice(0, 2).join(", ")}
-                        {drill.attendees.length > 2 && (
-                          <span className="text-slate-400"> +{drill.attendees.length - 2} more</span>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="text-slate-400">{drill.attendee_count || "—"}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       <button
                         onClick={() => openEdit(drill)}
-                        className="p-1.5 rounded-md text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                        className="p-1.5 rounded-md text-slate-400 hover:text-blue-500 hover:bg-white/60 transition-colors"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDelete(drill.id)}
                         disabled={deleting === drill.id}
-                        className="p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        className="p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-white/60 transition-colors"
                       >
                         {deleting === drill.id ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -279,11 +261,90 @@ export default function DrillsPage() {
                         )}
                       </button>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </div>
+
+                {/* Card body */}
+                <div className="p-4 space-y-3">
+                  {/* Date / time / location row */}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs">
+                    <span className="flex items-center gap-1 text-slate-600">
+                      <Calendar className="w-3 h-3 text-slate-400" />
+                      {formatDate(drill.drill_date)}
+                    </span>
+                    {drill.drill_time && (
+                      <span className="flex items-center gap-1 text-slate-600">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        {drill.drill_time}
+                      </span>
+                    )}
+                    {drill.location && (
+                      <span className="flex items-center gap-1 text-slate-600">
+                        <MapPin className="w-3 h-3 text-slate-400" />
+                        {drill.location}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Conducted by */}
+                  <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <User className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                    <span className="font-medium">{drill.conducted_by}</span>
+                  </div>
+
+                  {/* Attendees */}
+                  {drill.attendees && drill.attendees.length > 0 ? (
+                    <div>
+                      <div className="flex items-center gap-1 text-xs text-slate-400 mb-1.5">
+                        <Users className="w-3 h-3" />
+                        <span>Attendees ({drill.attendees.length})</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {drill.attendees.map((a, i) => (
+                          <span
+                            key={i}
+                            className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full"
+                          >
+                            {a}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : drill.attendee_count > 0 ? (
+                    <div className="flex items-center gap-1 text-xs text-slate-500">
+                      <Users className="w-3 h-3 text-slate-400" />
+                      <span>{drill.attendee_count} attendees</span>
+                    </div>
+                  ) : null}
+
+                  {/* Observations */}
+                  {drill.observations && (
+                    <div className="pt-1 border-t border-slate-100">
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Observations</p>
+                      <p className="text-xs text-slate-700 leading-relaxed">{drill.observations}</p>
+                    </div>
+                  )}
+
+                  {/* Corrective actions */}
+                  {drill.corrective_actions && (
+                    <div className="pt-1 border-t border-slate-100">
+                      <div className="flex items-center gap-1 mb-1">
+                        <AlertCircle className="w-3 h-3 text-amber-500" />
+                        <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">Corrective Actions</p>
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">{drill.corrective_actions}</p>
+                    </div>
+                  )}
+
+                  {/* Photo section */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 text-xs text-slate-400">
+                    <Camera className="w-3 h-3" />
+                    <span>Attach photos via the Photo Report section</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -303,7 +364,6 @@ export default function DrillsPage() {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {/* Drill type */}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Drill Type</label>
                 <select
@@ -318,7 +378,6 @@ export default function DrillsPage() {
                 </select>
               </div>
 
-              {/* Date + Time */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Date</label>
@@ -341,7 +400,6 @@ export default function DrillsPage() {
                 </div>
               </div>
 
-              {/* Location */}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Location (optional)</label>
                 <input
@@ -352,7 +410,6 @@ export default function DrillsPage() {
                 />
               </div>
 
-              {/* Conducted by */}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Conducted by</label>
                 <input
@@ -364,7 +421,6 @@ export default function DrillsPage() {
                 />
               </div>
 
-              {/* Attendee names */}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
                   Crew Attendees
@@ -379,12 +435,11 @@ export default function DrillsPage() {
                 />
                 {form.attendees_text.trim() && (
                   <p className="text-[10px] text-slate-400 mt-1">
-                    {form.attendees_text.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).length} attendees
+                    {form.attendees_text.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean).length} attendees
                   </p>
                 )}
               </div>
 
-              {/* Observations */}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Observations (optional)</label>
                 <textarea
@@ -396,7 +451,6 @@ export default function DrillsPage() {
                 />
               </div>
 
-              {/* Corrective actions */}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Corrective Actions (optional)</label>
                 <textarea

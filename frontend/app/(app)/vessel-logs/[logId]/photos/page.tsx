@@ -12,6 +12,9 @@ import {
   Trash2,
   ImageOff,
   Camera,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from "lucide-react";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -57,11 +60,23 @@ export default function PhotosPage() {
   const [pending, setPending] = useState<PendingPhoto[]>([]);
   const [dragging, setDragging] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchPhotos();
   }, [logId]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (lightboxIdx === null) return;
+      if (e.key === "Escape") setLightboxIdx(null);
+      if (e.key === "ArrowRight") setLightboxIdx((i) => i === null ? null : Math.min(i + 1, photos.length - 1));
+      if (e.key === "ArrowLeft") setLightboxIdx((i) => i === null ? null : Math.max(i - 1, 0));
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightboxIdx, photos.length]);
 
   async function fetchPhotos() {
     try {
@@ -105,11 +120,9 @@ export default function PhotosPage() {
   }
 
   async function uploadAll() {
-    // Snapshot pending at call time — avoids stale closure issues in async loop
     const snapshot = pending.filter((p) => !p.uploading);
     if (snapshot.length === 0) return;
 
-    // Mark all as uploading immediately
     setPending((prev) => prev.map((p) => (p.uploading ? p : { ...p, uploading: true, error: undefined })));
 
     const uploaded: MaintenancePhoto[] = [];
@@ -143,11 +156,13 @@ export default function PhotosPage() {
       })
     );
 
-    // Add successfully uploaded photos to gallery
     if (uploaded.length > 0) setPhotos((prev) => [...prev, ...uploaded]);
 
-    // Keep only failed items in pending (with error shown), clear successful ones
-    const uploadedPreviews = new Set(snapshot.filter((_, i) => !errors.find((e) => e.preview === snapshot[i].preview)).map((p) => p.preview));
+    const uploadedPreviews = new Set(
+      snapshot
+        .filter((p) => !errors.find((e) => e.preview === p.preview))
+        .map((p) => p.preview)
+    );
     setPending((prev) =>
       prev
         .filter((p) => !uploadedPreviews.has(p.preview))
@@ -162,7 +177,19 @@ export default function PhotosPage() {
     setDeleting(photoId);
     try {
       await api.delete(`/api/vessel-logs/${logId}/photos/${photoId}`);
-      setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      setPhotos((prev) => {
+        const next = prev.filter((p) => p.id !== photoId);
+        // adjust lightbox index if needed
+        setLightboxIdx((idx) => {
+          if (idx === null) return null;
+          const deletedIdx = prev.findIndex((p) => p.id === photoId);
+          if (deletedIdx < 0) return idx;
+          if (deletedIdx === idx) return next.length > 0 ? Math.min(idx, next.length - 1) : null;
+          if (deletedIdx < idx) return idx - 1;
+          return idx;
+        });
+        return next;
+      });
     } catch {
       /* ignore */
     } finally {
@@ -326,20 +353,25 @@ export default function PhotosPage() {
             Uploaded Photos
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {photos.map((photo) => (
-              <div key={photo.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden group">
+            {photos.map((photo, idx) => (
+              <div
+                key={photo.id}
+                className="bg-white border border-slate-200 rounded-xl overflow-hidden group cursor-pointer"
+                onClick={() => setLightboxIdx(idx)}
+              >
                 <div className="relative h-36 bg-slate-100">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={getPhotoUrl(photo)}
                     alt={photo.caption}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
                     onError={(e) => {
                       (e.currentTarget as HTMLImageElement).style.display = "none";
                     }}
                   />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                   <button
-                    onClick={() => deletePhoto(photo.id)}
+                    onClick={(e) => { e.stopPropagation(); deletePhoto(photo.id); }}
                     disabled={deleting === photo.id}
                     className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/90 text-slate-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all shadow-sm"
                   >
@@ -367,6 +399,60 @@ export default function PhotosPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Lightbox */}
+      {lightboxIdx !== null && photos[lightboxIdx] && (
+        <div
+          className="fixed inset-0 z-50 bg-black/92 flex items-center justify-center"
+          onClick={() => setLightboxIdx(null)}
+        >
+          {/* Prev */}
+          {lightboxIdx > 0 && (
+            <button
+              className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+              onClick={(e) => { e.stopPropagation(); setLightboxIdx((i) => i! - 1); }}
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+          )}
+
+          {/* Image */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={getPhotoUrl(photos[lightboxIdx])}
+            alt={photos[lightboxIdx].caption}
+            className="max-h-[88vh] max-w-[88vw] object-contain rounded-lg shadow-2xl cursor-zoom-out"
+            onClick={() => setLightboxIdx(null)}
+          />
+
+          {/* Next */}
+          {lightboxIdx < photos.length - 1 && (
+            <button
+              className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+              onClick={(e) => { e.stopPropagation(); setLightboxIdx((i) => i! + 1); }}
+            >
+              <ChevronRight className="w-6 h-6" />
+            </button>
+          )}
+
+          {/* Close */}
+          <button
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+            onClick={() => setLightboxIdx(null)}
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          {/* Caption + counter */}
+          <div className="absolute bottom-6 left-0 right-0 text-center pointer-events-none">
+            <p className="text-white/90 text-sm font-medium drop-shadow">{photos[lightboxIdx].caption}</p>
+            {photos[lightboxIdx].location_tag && (
+              <p className="text-white/50 text-xs mt-0.5">{photos[lightboxIdx].location_tag}</p>
+            )}
+            <p className="text-white/40 text-xs mt-1">{lightboxIdx + 1} / {photos.length}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

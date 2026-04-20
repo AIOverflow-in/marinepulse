@@ -11,6 +11,8 @@ import {
   Save,
   CheckCircle2,
   AlertTriangle,
+  BarChart2,
+  ChevronDown,
 } from "lucide-react";
 import {
   BarChart,
@@ -29,6 +31,19 @@ const TBN_LOW_THRESHOLD = 20;
 const FE_WARN_THRESHOLD = 200;
 const FE_CAUTION_THRESHOLD = 500;
 const FE_CRITICAL_THRESHOLD = 800;
+
+const OIL_TYPE_OPTIONS = [
+  "TARO ULTRA 140",
+  "TARO SPECIAL HT 140",
+  "DOLEX J140",
+  "MOBILGARD M540",
+  "MOBILGARD 540",
+  "SHELL GADINIA 40",
+  "CASTROL CYLTECH 140",
+  "TOTAL TALUSIA UNIVERSAL 100",
+  "VALVOLINE CYGNUS 140 HD",
+  "Other",
+];
 
 function tbnColor(val?: number | null): string {
   if (val == null) return "text-slate-400";
@@ -110,10 +125,23 @@ export default function MEPerformancePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [analysisFrom, setAnalysisFrom] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 3);
+    return d.toISOString().split("T")[0];
+  });
+  const [analysisTo, setAnalysisTo] = useState(() => new Date().toISOString().split("T")[0]);
+  const [oilTypeOther, setOilTypeOther] = useState("");
 
   useEffect(() => {
     api.get<MEPerformanceRecord>(`/api/vessel-logs/${logId}/me-performance`)
-      .then(setRecord)
+      .then((r) => {
+        setRecord(r);
+        if (r.oil_type && !OIL_TYPE_OPTIONS.slice(0, -1).includes(r.oil_type)) {
+          setOilTypeOther(r.oil_type);
+        }
+      })
       .catch(() => setRecord(buildBlankRecord(logId)))
       .finally(() => setLoading(false));
   }, [logId]);
@@ -135,7 +163,6 @@ export default function MEPerformancePage() {
     return isNaN(n) ? undefined : n;
   }
 
-  // Derived: specific feed rate = ACC × sulphur%
   const specificFeedRate =
     record?.acc_g_kwhxs != null && record?.sulphur_content_pct != null
       ? (record.acc_g_kwhxs * record.sulphur_content_pct).toFixed(3)
@@ -189,6 +216,11 @@ export default function MEPerformancePage() {
     (c) => c.fe_ppm != null || c.tbn_residual != null
   );
 
+  const oilTypeIsCustom = record.oil_type
+    ? !OIL_TYPE_OPTIONS.slice(0, -1).includes(record.oil_type)
+    : false;
+  const oilTypeSelectVal = oilTypeIsCustom && record.oil_type ? "Other" : (record.oil_type || "");
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* Breadcrumb */}
@@ -215,24 +247,6 @@ export default function MEPerformancePage() {
         </button>
       </div>
 
-      {/* Anomaly banners */}
-      {(hasAnyTbnAnomaly || hasAnyFeAnomaly) && (
-        <div className="mb-5 space-y-2">
-          {hasAnyTbnAnomaly && (
-            <div className="flex items-start gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>TBN residual below warning threshold (&lt;{TBN_WARN_THRESHOLD}) detected in one or more cylinders.</span>
-            </div>
-          )}
-          {hasAnyFeAnomaly && (
-            <div className="flex items-start gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>Elevated Fe ppm (&gt;{FE_WARN_THRESHOLD}) detected in one or more cylinders. Review lubrication and wear rates.</span>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Header fields */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
         <h2 className="text-sm font-semibold text-slate-700 mb-4">Engine & Oil Parameters</h2>
@@ -247,22 +261,50 @@ export default function MEPerformancePage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Completed by</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Chief Engineer</label>
             <input
+              list="ce-list"
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Chief Engineer"
+              placeholder="Name / rank"
               value={record.completed_by}
               onChange={(e) => setTop("completed_by", e.target.value)}
             />
+            <datalist id="ce-list">
+              <option value="Chief Engineer (CE)" />
+              <option value="2nd Engineer (2E)" />
+              <option value="3rd Engineer (3E)" />
+              <option value="Technical Superintendent" />
+            </datalist>
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Cylinder Oil Type</label>
-            <input
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g. TARO ULTRA 140"
-              value={record.oil_type || ""}
-              onChange={(e) => setTop("oil_type", e.target.value)}
-            />
+            <select
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              value={oilTypeSelectVal}
+              onChange={(e) => {
+                if (e.target.value === "Other") {
+                  setTop("oil_type", oilTypeOther || "");
+                } else {
+                  setTop("oil_type", e.target.value);
+                }
+              }}
+            >
+              <option value="">Select oil type…</option>
+              {OIL_TYPE_OPTIONS.map((o) => (
+                <option key={o} value={o}>{o}</option>
+              ))}
+            </select>
+            {(oilTypeSelectVal === "Other" || oilTypeIsCustom) && (
+              <input
+                className="w-full mt-1.5 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter oil type name…"
+                value={oilTypeOther}
+                onChange={(e) => {
+                  setOilTypeOther(e.target.value);
+                  setTop("oil_type", e.target.value);
+                }}
+              />
+            )}
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">TBN Nominal</label>
@@ -456,105 +498,6 @@ export default function MEPerformancePage() {
         </div>
       </div>
 
-      {/* TBN Bar Chart */}
-      {tbnChartData.some((d) => d.tbn != null) && (
-        <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-          <h2 className="text-sm font-semibold text-slate-700 mb-1">TBN Residuals by Cylinder</h2>
-          <p className="text-xs text-slate-400 mb-4">
-            Amber threshold line at {TBN_WARN_THRESHOLD} — values below indicate low TBN reserve
-          </p>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={tbnChartData} margin={{ top: 5, right: 10, bottom: 5, left: -10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 11, fill: "#64748b" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                domain={[0, "auto"]}
-                tick={{ fontSize: 11, fill: "#64748b" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "#fff",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "8px",
-                  fontSize: "12px",
-                }}
-                formatter={(val) => [`${val ?? ""}`, "TBN"]}
-              />
-              <ReferenceLine
-                y={TBN_WARN_THRESHOLD}
-                stroke="#f59e0b"
-                strokeDasharray="4 4"
-                label={{ value: `Warn (${TBN_WARN_THRESHOLD})`, position: "insideTopRight", fontSize: 10, fill: "#f59e0b" }}
-              />
-              <Bar dataKey="tbn" radius={[4, 4, 0, 0]}>
-                {tbnChartData.map((entry, idx) => (
-                  <Cell key={idx} fill={tbnBarColor(entry.tbn)} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Fe ppm Bar Chart */}
-      {feChartData.some((d) => d.fe != null) && (
-        <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-          <h2 className="text-sm font-semibold text-slate-700 mb-1">Fe ppm by Cylinder</h2>
-          <p className="text-xs text-slate-400 mb-4">
-            Green &lt;200 · Amber ≥200 · Orange ≥500 · Red ≥800 (critical)
-          </p>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={feChartData} margin={{ top: 5, right: 10, bottom: 5, left: -10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, "auto"]} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "12px" }}
-                formatter={(val) => [`${val ?? ""}`, "Fe ppm"]}
-              />
-              <ReferenceLine y={FE_WARN_THRESHOLD} stroke="#f59e0b" strokeDasharray="4 4"
-                label={{ value: `Warn (${FE_WARN_THRESHOLD})`, position: "insideTopRight", fontSize: 10, fill: "#f59e0b" }} />
-              <ReferenceLine y={FE_CRITICAL_THRESHOLD} stroke="#ef4444" strokeDasharray="4 4"
-                label={{ value: `Critical (${FE_CRITICAL_THRESHOLD})`, position: "insideTopRight", fontSize: 10, fill: "#ef4444" }} />
-              <Bar dataKey="fe" radius={[4, 4, 0, 0]}>
-                {feChartData.map((entry, idx) => (
-                  <Cell key={idx} fill={feBarColor(entry.fe)} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Cylinder Diagnosis Cards */}
-      {hasDiagnosisData && (
-        <div className="mb-6">
-          <h2 className="text-sm font-semibold text-slate-700 mb-3">Cylinder Health Diagnosis</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {record.cylinders.map((cyl) => {
-              const { label, color } = cylinderDiagnosis(cyl.fe_ppm, cyl.tbn_residual);
-              return (
-                <div key={cyl.cylinder_number} className="bg-white border border-slate-200 rounded-lg p-3">
-                  <div className="text-xs font-bold text-slate-600 mb-1.5">Cylinder {cyl.cylinder_number}</div>
-                  <div className="flex gap-3 text-xs mb-2">
-                    <span className="text-slate-500">Fe: <span className={feColor(cyl.fe_ppm)}>{cyl.fe_ppm != null ? `${cyl.fe_ppm} ppm` : "—"}</span></span>
-                    <span className="text-slate-500">TBN: <span className={tbnColor(cyl.tbn_residual)}>{cyl.tbn_residual != null ? cyl.tbn_residual : "—"}</span></span>
-                  </div>
-                  <p className={`text-xs leading-tight ${color}`}>{label}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Notes */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
         <label className="block text-sm font-semibold text-slate-700 mb-2">Notes</label>
@@ -565,6 +508,164 @@ export default function MEPerformancePage() {
           value={record.notes || ""}
           onChange={(e) => setTop("notes", e.target.value)}
         />
+      </div>
+
+      {/* ─── Analysis Section ───────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BarChart2 className="w-4 h-4 text-blue-600" />
+            <h2 className="text-sm font-semibold text-slate-700">Cylinder Oil Condition Analysis</h2>
+          </div>
+          {showAnalysis && (
+            <button
+              onClick={() => setShowAnalysis(false)}
+              className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 transition-colors"
+            >
+              <ChevronDown className="w-3.5 h-3.5 rotate-180" />
+              Collapse
+            </button>
+          )}
+        </div>
+
+        {!showAnalysis ? (
+          <div className="mt-4 space-y-3">
+            <p className="text-xs text-slate-500">
+              Run an analysis to view TBN residual trends, Fe ppm distribution, and per-cylinder health diagnosis.
+            </p>
+            <div className="flex items-end gap-3 flex-wrap">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">From</label>
+                <input
+                  type="date"
+                  className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={analysisFrom}
+                  onChange={(e) => setAnalysisFrom(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">To</label>
+                <input
+                  type="date"
+                  className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={analysisTo}
+                  onChange={(e) => setAnalysisTo(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={() => setShowAnalysis(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                <BarChart2 className="w-3.5 h-3.5" />
+                Run Analysis
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 space-y-6">
+            {/* Anomaly banners */}
+            {(hasAnyTbnAnomaly || hasAnyFeAnomaly) && (
+              <div className="space-y-2">
+                {hasAnyTbnAnomaly && (
+                  <div className="flex items-start gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>TBN residual below warning threshold (&lt;{TBN_WARN_THRESHOLD}) in one or more cylinders.</span>
+                  </div>
+                )}
+                {hasAnyFeAnomaly && (
+                  <div className="flex items-start gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>Elevated Fe ppm (&gt;{FE_WARN_THRESHOLD}) in one or more cylinders. Review lubrication and wear rates.</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TBN Bar Chart */}
+            {tbnChartData.some((d) => d.tbn != null) && (
+              <div>
+                <p className="text-sm font-semibold text-slate-700 mb-1">TBN Residuals by Cylinder</p>
+                <p className="text-xs text-slate-400 mb-3">
+                  Amber threshold at {TBN_WARN_THRESHOLD} — values below indicate low TBN reserve
+                </p>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={tbnChartData} margin={{ top: 5, right: 10, bottom: 5, left: -10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, "auto"]} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "12px" }}
+                      formatter={(val) => [`${val ?? ""}`, "TBN"]}
+                    />
+                    <ReferenceLine
+                      y={TBN_WARN_THRESHOLD}
+                      stroke="#f59e0b"
+                      strokeDasharray="4 4"
+                      label={{ value: `Warn (${TBN_WARN_THRESHOLD})`, position: "insideTopRight", fontSize: 10, fill: "#f59e0b" }}
+                    />
+                    <Bar dataKey="tbn" radius={[4, 4, 0, 0]}>
+                      {tbnChartData.map((entry, i) => (
+                        <Cell key={i} fill={tbnBarColor(entry.tbn)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Fe ppm Bar Chart */}
+            {feChartData.some((d) => d.fe != null) && (
+              <div>
+                <p className="text-sm font-semibold text-slate-700 mb-1">Fe ppm by Cylinder</p>
+                <p className="text-xs text-slate-400 mb-3">
+                  Green &lt;200 · Amber ≥200 · Orange ≥500 · Red ≥800 (critical)
+                </p>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={feChartData} margin={{ top: 5, right: 10, bottom: 5, left: -10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, "auto"]} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "12px" }}
+                      formatter={(val) => [`${val ?? ""}`, "Fe ppm"]}
+                    />
+                    <ReferenceLine y={FE_WARN_THRESHOLD} stroke="#f59e0b" strokeDasharray="4 4"
+                      label={{ value: `Warn (${FE_WARN_THRESHOLD})`, position: "insideTopRight", fontSize: 10, fill: "#f59e0b" }} />
+                    <ReferenceLine y={FE_CRITICAL_THRESHOLD} stroke="#ef4444" strokeDasharray="4 4"
+                      label={{ value: `Critical (${FE_CRITICAL_THRESHOLD})`, position: "insideTopRight", fontSize: 10, fill: "#ef4444" }} />
+                    <Bar dataKey="fe" radius={[4, 4, 0, 0]}>
+                      {feChartData.map((entry, i) => (
+                        <Cell key={i} fill={feBarColor(entry.fe)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Cylinder Diagnosis Cards */}
+            {hasDiagnosisData && (
+              <div>
+                <p className="text-sm font-semibold text-slate-700 mb-3">Cylinder Health Diagnosis</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {record.cylinders.map((cyl) => {
+                    const { label, color } = cylinderDiagnosis(cyl.fe_ppm, cyl.tbn_residual);
+                    return (
+                      <div key={cyl.cylinder_number} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <div className="text-xs font-bold text-slate-600 mb-1.5">Cylinder {cyl.cylinder_number}</div>
+                        <div className="flex gap-3 text-xs mb-2">
+                          <span className="text-slate-500">Fe: <span className={feColor(cyl.fe_ppm)}>{cyl.fe_ppm != null ? `${cyl.fe_ppm} ppm` : "—"}</span></span>
+                          <span className="text-slate-500">TBN: <span className={tbnColor(cyl.tbn_residual)}>{cyl.tbn_residual != null ? cyl.tbn_residual : "—"}</span></span>
+                        </div>
+                        <p className={`text-xs leading-tight ${color}`}>{label}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Save bottom */}
