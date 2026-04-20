@@ -379,3 +379,64 @@ export interface OverdueAlert {
   last_done?: string;
   days_overdue: number;
 }
+
+// ─── Class Status Reports ─────────────────────────────────────────────────────
+
+export interface SurveyItem {
+  name: string;
+  survey_type: "classification" | "statutory" | "continuous";
+  due_date?: string;
+  range_start?: string;
+  range_end?: string;
+  days_overdue?: number;
+  days_until_due?: number;
+  urgency: "critical" | "high" | "medium" | "low";
+}
+
+export interface FindingItem {
+  code: string;
+  reference?: string;
+  description: string;
+  finding_type: "condition_of_class" | "statutory" | "additional_info";
+  due_date?: string;
+  action_items: string[];
+  extensions: string[];
+  action_item_statuses: boolean[];
+}
+
+export interface TaskItem {
+  priority: "critical" | "high" | "medium" | "low";
+  category: "survey" | "finding" | "compliance" | "maintenance";
+  title: string;
+  description: string;
+  due_date?: string;
+  related_code?: string;
+  status: "open" | "in_progress" | "closed";
+  notes?: string;
+  closed_at?: string;
+}
+
+export interface ClassStatusReport {
+  id: string;
+  vessel_name: string;
+  imo_number?: string;
+  ir_number?: string;
+  flag?: string;
+  class_notation?: string;
+  report_date?: string;
+  filename: string;
+  has_file: boolean;
+  status: "processing" | "complete" | "failed";
+  error_message?: string;
+  overdue_count: number;
+  upcoming_count: number;
+  findings_count: number;
+  task_count: number;
+  created_at: string;
+  // full detail (only in GET /{id})
+  overdue_surveys?: SurveyItem[];
+  upcoming_surveys?: SurveyItem[];
+  outstanding_findings?: FindingItem[];
+  task_list?: TaskItem[];
+  ai_summary?: string;
+}

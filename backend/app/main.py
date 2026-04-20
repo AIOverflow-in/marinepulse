@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.database import init_db
-from app.routers import auth, companies, vessels, checklists, inspection_requests, inspections, analytics, chat, users, passage_plans, criteria_sets, vessel_logs
+from app.routers import auth, companies, vessels, checklists, inspection_requests, inspections, analytics, chat, users, passage_plans, criteria_sets, vessel_logs, class_status_reports
 
 
 @asynccontextmanager
@@ -34,6 +34,7 @@ app.include_router(users.router)
 app.include_router(passage_plans.router)
 app.include_router(criteria_sets.router)
 app.include_router(vessel_logs.router)
+app.include_router(class_status_reports.router)
 
 
 @app.get("/health")

@@ -28,6 +28,7 @@ from app.models.maintenance_log_record import MaintenanceLogRecord
 from app.models.maintenance_photo import MaintenancePhoto
 from app.models.drill_record import DrillRecord
 from app.models.me_performance_record import MEPerformanceRecord
+from app.models.class_status_report import ClassStatusReport
 
 
 async def init_db():
@@ -57,5 +58,6 @@ async def init_db():
             MaintenancePhoto,
             DrillRecord,
             MEPerformanceRecord,
+            ClassStatusReport,
         ],
     )

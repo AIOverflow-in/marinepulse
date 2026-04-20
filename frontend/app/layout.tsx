@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "MarinePulse — Vessel Health Index Platform",
-  description: "Maritime vessel inspection and health index management",
+  title: "AuditVault AI — Maritime Intelligence Platform",
+  description: "Maritime vessel inspection, operational logs, and AI-powered compliance management",
 };
 
 export default function RootLayout({

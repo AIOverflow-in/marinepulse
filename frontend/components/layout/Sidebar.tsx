@@ -17,6 +17,7 @@ import {
   MapPin,
   BookOpen,
   BookMarked,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearToken, getStoredUser } from "@/lib/api";
@@ -47,9 +48,10 @@ const navGroups = [
     ],
   },
   {
-    label: "OPERATIONS",
+    label: "VESSEL MANAGER",
     items: [
       { href: "/vessel-logs", icon: BookMarked, label: "Vessel Logs", roles: null },
+      { href: "/class-status", icon: ShieldCheck, label: "Class Status Reports", roles: null },
     ],
   },
   {
@@ -87,8 +89,8 @@ export function Sidebar() {
           <Anchor className="w-[17px] h-[17px] text-blue-400" />
         </div>
         <div>
-          <div className="font-semibold text-[15px] text-white leading-tight tracking-tight">MarinePulse</div>
-          <div className="text-[10px] text-slate-500 uppercase tracking-widest font-medium mt-0.5">VHI Platform</div>
+          <div className="font-semibold text-[15px] text-white leading-tight tracking-tight">AuditVault AI</div>
+          <div className="text-[10px] text-slate-500 uppercase tracking-widest font-medium mt-0.5">Maritime Intelligence</div>
         </div>
       </div>
 
