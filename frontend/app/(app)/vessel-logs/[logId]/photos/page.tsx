@@ -463,58 +463,129 @@ export default function PhotosPage() {
       ) : null}
 
       {/* Lightbox */}
-      {lightboxIdx !== null && photos[lightboxIdx] && (
-        <div
-          className="fixed inset-0 z-50 bg-black/92 flex items-center justify-center"
-          onClick={() => setLightboxIdx(null)}
-        >
-          {/* Prev */}
-          {lightboxIdx > 0 && (
-            <button
-              className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
-              onClick={(e) => { e.stopPropagation(); setLightboxIdx((i) => i! - 1); }}
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-          )}
-
-          {/* Image */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={getPhotoUrl(photos[lightboxIdx])}
-            alt={photos[lightboxIdx].caption}
-            className="max-h-[88vh] max-w-[88vw] object-contain rounded-lg shadow-2xl cursor-zoom-out"
-            onClick={() => setLightboxIdx(null)}
-          />
-
-          {/* Next */}
-          {lightboxIdx < photos.length - 1 && (
-            <button
-              className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
-              onClick={(e) => { e.stopPropagation(); setLightboxIdx((i) => i! + 1); }}
-            >
-              <ChevronRight className="w-6 h-6" />
-            </button>
-          )}
-
-          {/* Close */}
-          <button
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+      {lightboxIdx !== null && photos[lightboxIdx] && (() => {
+        const p = photos[lightboxIdx];
+        const displayDate = p.taken_at || p.uploaded_at;
+        const dateLabel = p.taken_at ? "Date taken" : "Uploaded";
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-black/92 flex items-center justify-center p-4"
             onClick={() => setLightboxIdx(null)}
           >
-            <X className="w-5 h-5" />
-          </button>
-
-          {/* Caption + counter */}
-          <div className="absolute bottom-6 left-0 right-0 text-center pointer-events-none">
-            <p className="text-white/90 text-sm font-medium drop-shadow">{photos[lightboxIdx].caption}</p>
-            {photos[lightboxIdx].location_tag && (
-              <p className="text-white/50 text-xs mt-0.5">{photos[lightboxIdx].location_tag}</p>
+            {/* Prev */}
+            {lightboxIdx > 0 && (
+              <button
+                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+                onClick={(e) => { e.stopPropagation(); setLightboxIdx((i) => i! - 1); }}
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
             )}
-            <p className="text-white/40 text-xs mt-1">{lightboxIdx + 1} / {photos.length}</p>
+
+            {/* Close */}
+            <button
+              className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+              onClick={() => setLightboxIdx(null)}
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Content: image + sidebar */}
+            <div
+              className="flex items-stretch gap-0 max-h-[90vh] max-w-[95vw] rounded-xl overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Image */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={getPhotoUrl(p)}
+                alt={p.caption}
+                className="max-h-[90vh] max-w-[72vw] object-contain bg-black cursor-zoom-out"
+                onClick={() => setLightboxIdx(null)}
+              />
+
+              {/* Metadata panel */}
+              <div className="w-64 bg-white flex flex-col overflow-y-auto">
+                {/* Counter bar */}
+                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Photo Details</span>
+                  <span className="text-xs text-slate-400">{lightboxIdx + 1} / {photos.length}</span>
+                </div>
+
+                <div className="px-4 py-4 space-y-4 flex-1">
+                  {/* Caption */}
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Caption</p>
+                    <p className="text-sm font-medium text-slate-800 leading-snug">{p.caption}</p>
+                  </div>
+
+                  {/* Category */}
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Category</p>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${CATEGORY_COLORS[p.category] || CATEGORY_COLORS.other}`}>
+                      {CATEGORY_LABELS[p.category] || p.category}
+                    </span>
+                  </div>
+
+                  {/* Location */}
+                  {p.location_tag && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Location</p>
+                      <p className="text-sm text-slate-700">{p.location_tag}</p>
+                    </div>
+                  )}
+
+                  {/* Date */}
+                  {displayDate && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{dateLabel}</p>
+                      <p className="text-sm text-slate-700">
+                        {new Date(displayDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* File size */}
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">File Size</p>
+                    <p className="text-sm text-slate-700">{p.file_size_kb} KB</p>
+                  </div>
+
+                  {/* Original filename */}
+                  {p.original_filename && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Filename</p>
+                      <p className="text-xs text-slate-500 break-all leading-snug">{p.original_filename}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Delete button */}
+                <div className="px-4 py-3 border-t border-slate-100">
+                  <button
+                    onClick={() => deletePhoto(p.id)}
+                    disabled={deleting === p.id}
+                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
+                  >
+                    {deleting === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                    Delete Photo
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Next */}
+            {lightboxIdx < photos.length - 1 && (
+              <button
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+                onClick={(e) => { e.stopPropagation(); setLightboxIdx((i) => i! + 1); }}
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
