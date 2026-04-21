@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import type { MEPerformanceRecord, CylinderData } from "@/types";
+import type { MEPerformanceRecord, CylinderData, VesselWeeklyLog } from "@/types";
 import {
   ArrowLeft,
   Loader2,
@@ -122,28 +122,31 @@ function numField(val: number | undefined | null): string {
 export default function MEPerformancePage() {
   const { logId } = useParams<{ logId: string }>();
   const [record, setRecord] = useState<MEPerformanceRecord | null>(null);
+  const [log, setLog] = useState<VesselWeeklyLog | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
-  const [analysisFrom, setAnalysisFrom] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 3);
-    return d.toISOString().split("T")[0];
-  });
-  const [analysisTo, setAnalysisTo] = useState(() => new Date().toISOString().split("T")[0]);
+  const currentYear = new Date().getFullYear();
+  const [analysisWeek, setAnalysisWeek] = useState<number | "">("");
+  const [analysisYear, setAnalysisYear] = useState<number | "">(currentYear);
   const [oilTypeOther, setOilTypeOther] = useState("");
 
   useEffect(() => {
-    api.get<MEPerformanceRecord>(`/api/vessel-logs/${logId}/me-performance`)
-      .then((r) => {
-        setRecord(r);
-        if (r.oil_type && !OIL_TYPE_OPTIONS.slice(0, -1).includes(r.oil_type)) {
-          setOilTypeOther(r.oil_type);
-        }
-      })
-      .catch(() => setRecord(buildBlankRecord(logId)))
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get<MEPerformanceRecord>(`/api/vessel-logs/${logId}/me-performance`).catch(() => null),
+      api.get<VesselWeeklyLog>(`/api/vessel-logs/${logId}`).catch(() => null),
+    ]).then(([r, l]) => {
+      setRecord(r ?? buildBlankRecord(logId));
+      if (r?.oil_type && !OIL_TYPE_OPTIONS.slice(0, -1).includes(r.oil_type)) {
+        setOilTypeOther(r.oil_type);
+      }
+      if (l) {
+        setLog(l);
+        setAnalysisWeek(l.week_number);
+        setAnalysisYear(l.year);
+      }
+    }).finally(() => setLoading(false));
   }, [logId]);
 
   function setTop(field: keyof MEPerformanceRecord, value: unknown) {
@@ -251,6 +254,18 @@ export default function MEPerformancePage() {
       <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
         <h2 className="text-sm font-semibold text-slate-700 mb-4">Engine & Oil Parameters</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Week Number</label>
+            <div className="w-full px-3 py-2 border border-slate-100 bg-slate-50 rounded-lg text-sm text-slate-700 font-semibold">
+              {log?.week_number != null ? `Week ${log.week_number}` : <span className="text-slate-400 font-normal">—</span>}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Year</label>
+            <div className="w-full px-3 py-2 border border-slate-100 bg-slate-50 rounded-lg text-sm text-slate-700 font-semibold">
+              {log?.year ?? <span className="text-slate-400 font-normal">—</span>}
+            </div>
+          </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Record Date</label>
             <input
@@ -535,22 +550,30 @@ export default function MEPerformancePage() {
             </p>
             <div className="flex items-end gap-3 flex-wrap">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">From</label>
-                <input
-                  type="date"
-                  className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={analysisFrom}
-                  onChange={(e) => setAnalysisFrom(e.target.value)}
-                />
+                <label className="block text-xs font-medium text-slate-600 mb-1">Week</label>
+                <select
+                  className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  value={analysisWeek}
+                  onChange={(e) => setAnalysisWeek(e.target.value === "" ? "" : parseInt(e.target.value))}
+                >
+                  <option value="">All Weeks</option>
+                  {Array.from({ length: 52 }, (_, i) => i + 1).map((w) => (
+                    <option key={w} value={w}>Week {w}</option>
+                  ))}
+                </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">To</label>
-                <input
-                  type="date"
-                  className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={analysisTo}
-                  onChange={(e) => setAnalysisTo(e.target.value)}
-                />
+                <label className="block text-xs font-medium text-slate-600 mb-1">Year</label>
+                <select
+                  className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  value={analysisYear}
+                  onChange={(e) => setAnalysisYear(e.target.value === "" ? "" : parseInt(e.target.value))}
+                >
+                  <option value="">All Years</option>
+                  {[2023, 2024, 2025, 2026, 2027].map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
               </div>
               <button
                 onClick={() => setShowAnalysis(true)}
