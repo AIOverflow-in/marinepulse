@@ -98,12 +98,16 @@ export default function SafetyChecksPage() {
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Completed by</label>
-          <input
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Officer name & rank"
+          <select
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             value={record.completed_by}
             onChange={(e) => setRecord({ ...record, completed_by: e.target.value })}
-          />
+          >
+            <option value="">— Select rank —</option>
+            {["2E", "ETO", "CO", "3O", "2O", "3E", "CE", "4E", "Master"].map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Position</label>
@@ -132,13 +136,11 @@ export default function SafetyChecksPage() {
                   <th key={w} className="px-2 py-2 w-10 text-center font-semibold text-slate-500">{w}</th>
                 ))}
                 <th className="text-left px-3 py-2 w-24 font-semibold text-slate-500">Initials</th>
-                <th className="px-2 py-2 w-16 text-center font-semibold text-slate-500" title="Logbook entry confirmed">Log</th>
                 <th className="text-left px-3 py-2 font-semibold text-slate-500">Remarks</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {record.week_items.map((item, idx) => {
-                const isChecked = item.w1 || item.w2 || item.w3 || item.w4 || item.w5;
                 return (
                   <tr key={item.item_code} className="hover:bg-slate-50/50">
                     <td className="px-3 py-2 font-bold text-slate-600">{item.item_code}</td>
@@ -158,16 +160,6 @@ export default function SafetyChecksPage() {
                         className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
                         value={item.initials || ""}
                         onChange={(e) => setWeeklyItem(idx, "initials", e.target.value)}
-                      />
-                    </td>
-                    <td className="px-2 py-2 text-center">
-                      <input
-                        type="checkbox"
-                        checked={item.logbook_confirmed || false}
-                        disabled={!isChecked}
-                        onChange={(e) => setWeeklyItem(idx, "logbook_confirmed", e.target.checked)}
-                        className="w-4 h-4 accent-emerald-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                        title="Confirm test recorded in engine log book"
                       />
                     </td>
                     <td className="px-3 py-2">

@@ -234,6 +234,8 @@ function getISOWeek(d: Date): number {
 export default function VesselLogsPage() {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
+  const [filterWeek, setFilterWeek] = useState<number | "">("");
+  const [filterYear, setFilterYear] = useState<number | "">("");
   const [vessels, setVessels] = useState<Vessel[]>([]);
   const [logs, setLogs] = useState<VesselWeeklyLog[]>([]);
   const [calendar, setCalendar] = useState<{ vessel_id: string; vessel_name: string; weeks: Record<string, string> }[]>([]);
@@ -355,8 +357,38 @@ export default function VesselLogsPage() {
 
           {/* Recent Logs Table */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-4 flex-wrap">
               <h2 className="font-semibold text-slate-800">Recent Logs</h2>
+              <div className="flex items-center gap-2">
+                <select
+                  className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  value={filterWeek}
+                  onChange={(e) => setFilterWeek(e.target.value === "" ? "" : parseInt(e.target.value))}
+                >
+                  <option value="">All Weeks</option>
+                  {Array.from({ length: 52 }, (_, i) => i + 1).map((w) => (
+                    <option key={w} value={w}>Week {w}</option>
+                  ))}
+                </select>
+                <select
+                  className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  value={filterYear}
+                  onChange={(e) => setFilterYear(e.target.value === "" ? "" : parseInt(e.target.value))}
+                >
+                  <option value="">All Years</option>
+                  {[2023, 2024, 2025, 2026, 2027].map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                {(filterWeek !== "" || filterYear !== "") && (
+                  <button
+                    onClick={() => { setFilterWeek(""); setFilterYear(""); }}
+                    className="text-xs text-slate-400 hover:text-slate-600 underline"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
             {loading ? (
               <div className="flex justify-center py-8">
@@ -378,7 +410,11 @@ export default function VesselLogsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {logs.map((log) => {
+                  {logs.filter((log) => {
+                    if (filterWeek !== "" && log.week_number !== filterWeek) return false;
+                    if (filterYear !== "" && log.year !== filterYear) return false;
+                    return true;
+                  }).map((log) => {
                     const done = [
                       log.has_safety_checks,
                       log.has_maintenance_log,

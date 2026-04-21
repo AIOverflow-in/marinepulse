@@ -310,6 +310,7 @@ export interface MaintenanceLogRecord {
   electrical_tasks: MaintenanceTask[];
   completed_by: string;
   reviewed_by?: string;
+  completion_date?: string;
   created_at?: string;
   updated_at?: string;
 }

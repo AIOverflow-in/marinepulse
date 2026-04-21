@@ -49,6 +49,7 @@ interface PendingPhoto {
   caption: string;
   category: string;
   location_tag: string;
+  taken_at: string;
   uploading: boolean;
   error?: string;
 }
@@ -61,6 +62,9 @@ export default function PhotosPage() {
   const [dragging, setDragging] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const [filterCategory, setFilterCategory] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -99,6 +103,7 @@ export default function PhotosPage() {
         caption: file.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " "),
         category: "other",
         location_tag: "",
+        taken_at: "",
         uploading: false,
       }));
     setPending((prev) => [...prev, ...newPending]);
@@ -136,6 +141,7 @@ export default function PhotosPage() {
           fd.append("caption", p.caption);
           fd.append("category", p.category);
           if (p.location_tag) fd.append("location_tag", p.location_tag);
+          if (p.taken_at) fd.append("taken_at", p.taken_at);
 
           const token = typeof window !== "undefined" ? localStorage.getItem("mp_token") : null;
           const res = await fetch(
@@ -210,6 +216,15 @@ export default function PhotosPage() {
   }
 
   const uploadingCount = pending.filter((p) => p.uploading).length;
+
+  const filteredPhotos = photos.filter((photo) => {
+    if (filterCategory && photo.category !== filterCategory) return false;
+    const photoDate = photo.taken_at || photo.uploaded_at;
+    const photoDay = photoDate ? photoDate.slice(0, 10) : "";
+    if (dateFrom && photoDay && photoDay < dateFrom) return false;
+    if (dateTo && photoDay && photoDay > dateTo) return false;
+    return true;
+  });
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -331,6 +346,13 @@ export default function PhotosPage() {
                       onChange={(e) => updatePending(idx, "location_tag", e.target.value)}
                     />
                   </div>
+                  <input
+                    type="date"
+                    className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    value={p.taken_at}
+                    onChange={(e) => updatePending(idx, "taken_at", e.target.value)}
+                    onKeyDown={(e) => e.preventDefault()}
+                  />
                   {p.error && (
                     <p className="text-xs text-red-600">{p.error}</p>
                   )}
@@ -349,15 +371,55 @@ export default function PhotosPage() {
         </div>
       ) : photos.length > 0 ? (
         <div>
-          <h2 className="text-sm font-semibold text-slate-700 mb-3">
-            Uploaded Photos
-          </h2>
+          <div className="flex items-center justify-between mb-3 gap-4 flex-wrap">
+            <h2 className="text-sm font-semibold text-slate-700">
+              Uploaded Photos {filterCategory || dateFrom || dateTo ? `(${filteredPhotos.length} of ${photos.length})` : `(${photos.length})`}
+            </h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+              >
+                <option value="">All Categories</option>
+                {Object.entries(CATEGORY_LABELS).map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </select>
+              <input
+                type="date"
+                className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                onKeyDown={(e) => e.preventDefault()}
+                title="From date"
+                placeholder="From"
+              />
+              <input
+                type="date"
+                className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                onKeyDown={(e) => e.preventDefault()}
+                title="To date"
+                placeholder="To"
+              />
+              {(filterCategory || dateFrom || dateTo) && (
+                <button
+                  onClick={() => { setFilterCategory(""); setDateFrom(""); setDateTo(""); }}
+                  className="text-xs text-slate-400 hover:text-slate-600 underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {photos.map((photo, idx) => (
+            {filteredPhotos.map((photo, idx) => (
               <div
                 key={photo.id}
                 className="bg-white border border-slate-200 rounded-xl overflow-hidden group cursor-pointer"
-                onClick={() => setLightboxIdx(idx)}
+                onClick={() => setLightboxIdx(photos.indexOf(photo))}
               >
                 <div className="relative h-36 bg-slate-100">
                   {/* eslint-disable-next-line @next/next/no-img-element */}

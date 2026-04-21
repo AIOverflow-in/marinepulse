@@ -1,6 +1,6 @@
 from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Optional
 
 
@@ -35,6 +35,7 @@ class MaintenanceLogRecord(Document):
     electrical_tasks: List[MaintenanceTask] = []
     completed_by: str = ""
     reviewed_by: Optional[str] = None
+    completion_date: Optional[date] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
