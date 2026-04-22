@@ -256,12 +256,17 @@ function PeriodicSection({
                   />
                 </td>
                 <td className="px-3 py-2">
-                  <input
+                  <select
                     disabled={item.not_applicable}
-                    className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    className="w-full px-2 py-1 border border-slate-200 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
                     value={item.initials || ""}
                     onChange={(e) => onChange(idx, "initials", e.target.value)}
-                  />
+                  >
+                    <option value="">—</option>
+                    {RANKS.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
                 </td>
                 <td className="px-3 py-2 text-center">
                   <input
