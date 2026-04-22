@@ -7,6 +7,8 @@ import { api } from "@/lib/api";
 import type { SafetyCheckRecord, WeeklyCheckItem, PeriodicCheckItem } from "@/types";
 import { ArrowLeft, Loader2, Save, CheckCircle2 } from "lucide-react";
 
+const RANKS = ["2E", "ETO", "CO", "3O", "2O", "3E", "CE", "4E", "Master"];
+
 export default function SafetyChecksPage() {
   const { logId } = useParams<{ logId: string }>();
   const [record, setRecord] = useState<SafetyCheckRecord | null>(null);
@@ -104,7 +106,7 @@ export default function SafetyChecksPage() {
             onChange={(e) => setRecord({ ...record, completed_by: e.target.value })}
           >
             <option value="">— Select rank —</option>
-            {["2E", "ETO", "CO", "3O", "2O", "3E", "CE", "4E", "Master"].map((r) => (
+            {RANKS.map((r) => (
               <option key={r} value={r}>{r}</option>
             ))}
           </select>
@@ -156,11 +158,16 @@ export default function SafetyChecksPage() {
                       </td>
                     ))}
                     <td className="px-3 py-2">
-                      <input
-                        className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      <select
+                        className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
                         value={item.initials || ""}
                         onChange={(e) => setWeeklyItem(idx, "initials", e.target.value)}
-                      />
+                      >
+                        <option value="">—</option>
+                        {RANKS.map((r) => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-3 py-2">
                       <input

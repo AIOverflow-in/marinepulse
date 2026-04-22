@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import type { DrillRecord } from "@/types";
+import type { DrillRecord, MaintenancePhoto } from "@/types";
 import {
   ArrowLeft,
   Loader2,
@@ -21,6 +21,8 @@ import {
   Clock,
   Camera,
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 const DRILL_TYPE_LABELS: Record<string, string> = {
@@ -77,9 +79,24 @@ const EMPTY_FORM: DrillForm = {
   corrective_actions: "",
 };
 
+function groupPhotosByDrill(photos: MaintenancePhoto[]): Record<string, MaintenancePhoto[]> {
+  const groups: Record<string, MaintenancePhoto[]> = {};
+  for (const p of photos) {
+    if (p.location_tag?.startsWith("drill:")) {
+      const drillId = p.location_tag.slice(6);
+      if (!groups[drillId]) groups[drillId] = [];
+      groups[drillId].push(p);
+    }
+  }
+  return groups;
+}
+
 export default function DrillsPage() {
   const { logId } = useParams<{ logId: string }>();
   const [drills, setDrills] = useState<DrillRecord[]>([]);
+  const [drillPhotos, setDrillPhotos] = useState<Record<string, MaintenancePhoto[]>>({});
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ drillId: string; idx: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -88,17 +105,72 @@ export default function DrillsPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchDrills();
+    fetchAll();
   }, [logId]);
 
-  async function fetchDrills() {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!lightbox) return;
+      if (e.key === "Escape") setLightbox(null);
+      const photos = drillPhotos[lightbox.drillId] || [];
+      if (e.key === "ArrowRight" && lightbox.idx < photos.length - 1)
+        setLightbox((lb) => lb && { ...lb, idx: lb.idx + 1 });
+      if (e.key === "ArrowLeft" && lightbox.idx > 0)
+        setLightbox((lb) => lb && { ...lb, idx: lb.idx - 1 });
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox, drillPhotos]);
+
+  async function fetchAll() {
     try {
-      const data = await api.get<DrillRecord[]>(`/api/vessel-logs/${logId}/drills`);
-      setDrills(data);
+      const [drillsData, photosData] = await Promise.all([
+        api.get<DrillRecord[]>(`/api/vessel-logs/${logId}/drills`).catch(() => [] as DrillRecord[]),
+        api.get<MaintenancePhoto[]>(`/api/vessel-logs/${logId}/photos`).catch(() => [] as MaintenancePhoto[]),
+      ]);
+      setDrills(drillsData);
+      setDrillPhotos(groupPhotosByDrill(photosData));
     } catch {
       /* ignore */
     } finally {
       setLoading(false);
+    }
+  }
+
+  function getPhotoUrl(photoId: string) {
+    return `${process.env.NEXT_PUBLIC_API_URL || ""}/api/vessel-logs/${logId}/photos/${photoId}/file`;
+  }
+
+  async function uploadDrillPhoto(drill: DrillRecord, file: File) {
+    setUploadingFor(drill.id);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("caption", drill.drill_type_label || DRILL_TYPE_LABELS[drill.drill_type] || drill.drill_type);
+      fd.append("category", "other");
+      fd.append("location_tag", `drill:${drill.id}`);
+      const token = typeof window !== "undefined" ? localStorage.getItem("mp_token") : null;
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || ""}/api/vessel-logs/${logId}/photos`,
+        { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd }
+      );
+      if (!res.ok) throw new Error(await res.text());
+      const photo: MaintenancePhoto = await res.json();
+      setDrillPhotos((prev) => ({ ...prev, [drill.id]: [...(prev[drill.id] || []), photo] }));
+    } catch {
+      /* ignore */
+    } finally {
+      setUploadingFor(null);
+    }
+  }
+
+  async function deleteDrillPhoto(drillId: string, photoId: string) {
+    try {
+      await api.delete(`/api/vessel-logs/${logId}/photos/${photoId}`);
+      setDrillPhotos((prev) => ({ ...prev, [drillId]: (prev[drillId] || []).filter((p) => p.id !== photoId) }));
+      setLightbox((lb) => lb?.drillId === drillId ? null : lb);
+    } catch {
+      /* ignore */
     }
   }
 
@@ -336,10 +408,52 @@ export default function DrillsPage() {
                     </div>
                   )}
 
-                  {/* Photo section */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 text-xs text-slate-400">
-                    <Camera className="w-3 h-3" />
-                    <span>Attach photos via the Photo Report section</span>
+                  {/* Photo strip */}
+                  <div className="pt-2 border-t border-slate-100">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {(drillPhotos[drill.id] || []).map((photo, photoIdx) => (
+                        <div
+                          key={photo.id}
+                          className="relative w-14 h-14 flex-shrink-0 group/photo"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={getPhotoUrl(photo.id)}
+                            alt={photo.caption}
+                            className="w-14 h-14 rounded-lg object-cover cursor-pointer"
+                            onClick={() => setLightbox({ drillId: drill.id, idx: photoIdx })}
+                          />
+                          <button
+                            onClick={() => deleteDrillPhoto(drill.id, photo.id)}
+                            className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity shadow-sm"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                      <label className={`w-14 h-14 rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer flex-shrink-0 transition-colors ${
+                        uploadingFor === drill.id
+                          ? "border-blue-300 bg-blue-50"
+                          : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                      }`}>
+                        {uploadingFor === drill.id ? (
+                          <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+                        ) : (
+                          <Camera className="w-4 h-4 text-slate-400" />
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingFor === drill.id}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) uploadDrillPhoto(drill, f);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -347,6 +461,55 @@ export default function DrillsPage() {
           })}
         </div>
       )}
+
+      {/* Photo lightbox */}
+      {lightbox !== null && (() => {
+        const photos = drillPhotos[lightbox.drillId] || [];
+        const photo = photos[lightbox.idx];
+        if (!photo) return null;
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-black/92 flex items-center justify-center"
+            onClick={() => setLightbox(null)}
+          >
+            {lightbox.idx > 0 && (
+              <button
+                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+                onClick={(e) => { e.stopPropagation(); setLightbox((lb) => lb && { ...lb, idx: lb.idx - 1 }); }}
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+            )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={getPhotoUrl(photo.id)}
+              alt={photo.caption}
+              className="max-h-[88vh] max-w-[88vw] object-contain rounded-lg shadow-2xl cursor-zoom-out"
+              onClick={() => setLightbox(null)}
+            />
+            {lightbox.idx < photos.length - 1 && (
+              <button
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+                onClick={(e) => { e.stopPropagation(); setLightbox((lb) => lb && { ...lb, idx: lb.idx + 1 }); }}
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            )}
+            <button
+              className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+              onClick={() => setLightbox(null)}
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="absolute bottom-6 left-0 right-0 text-center pointer-events-none">
+              <p className="text-white/80 text-sm drop-shadow">{photo.caption}</p>
+              {photos.length > 1 && (
+                <p className="text-white/40 text-xs mt-1">{lightbox.idx + 1} / {photos.length}</p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal */}
       {showModal && (
